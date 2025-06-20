@@ -2,6 +2,21 @@
 
 {% block title %}Detail Produk: {{ product.name }}{% endblock %}
 
+{% block head %}
+    {{ super() }}
+    {# Open Graph Meta Tags for Sharing #}
+    <meta property="og:title" content="{{ product.name }}" />
+    <meta property="og:description" content="{{ product.description | striptags | truncate(150, True, '...') }}" />
+    <meta property="og:image" content="{{ product.image_url if product.image_url else 'https://placehold.co/1200x630/cccccc/333333?text=Gambar+Produk' }}" />
+    <meta property="og:url" content="{{ request.url }}" />
+    <meta property="og:type" content="product" />
+    {# Optional: Twitter Card Meta Tags #}
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ product.name }}">
+    <meta name="twitter:description" content="{{ product.description | striptags | truncate(150, True, '...') }}">
+    <meta name="twitter:image" content="{{ product.image_url if product.image_url else 'https://placehold.co/1200x630/cccccc/333333?text=Gambar+Produk' }}">
+{% endblock %}
+
 {% block content %}
     <h1 class="mb-4 text-center" style="font-size: 1.5rem;">{{ product.name }}</h1>
     <div class="card shadow-sm rounded-3 mx-auto" style="max-width: 800px;">
