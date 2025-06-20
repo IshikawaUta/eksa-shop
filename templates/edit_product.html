@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block title %}Edit Produk{% endblock %}
+
+{% block content %}
+    <h1 class="mb-4 text-center">Edit Produk</h1>
+    <div class="card shadow-sm rounded-3 mx-auto" style="max-width: 600px;">
+        <div class="card-body p-4">
+            <form method="POST" action="{{ url_for('edit_product', id=product._id) }}" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label for="name" class="form-label">Nama Produk</label>
+                    <input type="text" class="form-control rounded-pill" id="name" name="name" value="{{ product.name }}" required>
+                </div>
+                <div class="mb-3">
+                    <label for="category" class="form-label">Kategori Produk</label>
+                    <input type="text" class="form-control rounded-pill" id="category" name="category" value="{{ product.category | default('') }}" placeholder="Contoh: Elektronik, Pakaian, Buku" required>
+                </div>
+                <div class="mb-3">
+                    <label for="description" class="form-label">Deskripsi</label>
+                    <textarea class="form-control rounded-3" id="description" name="description" rows="5" required>{{ product.description }}</textarea>
+                </div>
+                <div class="mb-3">
+                    <label for="price" class="form-label">Harga (Rp)</label>
+                    <input type="number" class="form-control rounded-pill" id="price" name="price" step="0.01" value="{{ product.price }}" required>
+                </div>
+                <div class="mb-3">
+                    <label for="current_image" class="form-label">Gambar Saat Ini</label>
+                    {% if product.image_url %}
+                        <img src="{{ product.image_url }}" alt="Gambar Produk" class="img-fluid rounded-3 mb-2" style="max-height: 150px; object-fit: contain;">
+                    {% else %}
+                        <p class="text-muted">Tidak ada gambar saat ini.</p>
+                        <img src="https://placehold.co/400x150/cccccc/333333?text=Tidak+Ada+Gambar" class="img-fluid rounded-3 mb-2" alt="Tidak Ada Gambar" style="max-height: 150px; object-fit: contain;">
+                    {% endif %}
+                    <label for="image" class="form-label mt-2">Unggah Gambar Baru (Biarkan kosong jika tidak ingin mengubah)</label>
+                    <input type="file" class="form-control rounded-pill" id="image" name="image" accept="image/*">
+                </div>
+                <div class="d-grid gap-2 mt-4">
+                    <button type="submit" class="btn btn-primary btn-lg rounded-pill" style="font-size: 1rem;">Perbarui Produk</button>
+                    <a href="{{ url_for('product_detail', id=product._id) }}" class="btn btn-outline-secondary btn-lg rounded-pill" style="font-size: 1rem;">Batal</a>
+                </div>
+            </form>
+        </div>
+    </div>
+{% endblock %}

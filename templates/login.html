@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+
+{% block title %}Login Admin/Customer{% endblock %}
+
+{% block content %}
+    <h1 class="mb-4 text-center">Login</h1>
+    <div class="card shadow-sm rounded-3 mx-auto" style="max-width: 400px;">
+        <div class="card-body p-4">
+            <form method="POST" action="{{ url_for('login') }}">
+                <div class="mb-3">
+                    <label for="username" class="form-label">Nama Pengguna</label>
+                    <input type="text" class="form-control rounded-pill" id="username" name="username" required>
+                </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Kata Sandi</label>
+                    <input type="password" class="form-control rounded-pill" id="password" name="password" required>
+                </div>
+                <div class="d-grid gap-2 mt-4">
+                    <button type="submit" class="btn btn-primary btn-lg rounded-pill" style="font-size: 1rem;">Login</button>
+                    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-lg rounded-pill" style="font-size: 1rem;">Batal</a>
+                </div>
+            </form>
+            <hr class="my-4">
+            <p class="text-center text-muted mb-2">Belum punya akun? <a href="{{ url_for('register') }}">Daftar di sini.</a></p>
+            <!-- <p class="text-center text-muted">
+                Untuk admin pertama, silakan <a href="{{ url_for('create_first_admin') }}">buat akun admin di sini.</a>
+            </p> -->
+        </div>
+    </div>
+{% endblock %}

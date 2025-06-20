@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+
+{% block title %}Daftar Produk{% endblock %}
+
+{% block content %}
+    <h1 class="mb-4 text-center">Daftar Produk</h1>
+
+    {# Filter Kategori #}
+    <div class="mb-4 p-3 bg-white rounded-3 shadow-sm">
+        <h5 class="mb-3">Filter Berdasarkan Kategori:</h5>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{{ url_for('index', category='all', q=search_query) }}" class="btn {% if selected_category == 'all' or selected_category == None %}btn-primary{% else %}btn-outline-primary{% endif %} rounded-pill">
+                <i class="fas fa-th-large"></i> Semua
+            </a>
+            {% for category in all_categories %}
+                <a href="{{ url_for('index', category=category, q=search_query) }}" class="btn {% if selected_category == category %}btn-primary{% else %}btn-outline-primary{% endif %} rounded-pill">
+                    <i class="fas fa-tag"></i> {{ category }}
+                </a>
+            {% endfor %}
+        </div>
+    </div>
+
+    {# Bilah Pencarian Produk #}
+    <div class="mb-4 p-3 bg-white rounded-3 shadow-sm">
+        <h5 class="mb-3">Cari Produk:</h5>
+        <form class="d-flex" action="{{ url_for('index') }}" method="GET">
+            <input class="form-control me-2 rounded-pill" type="search" placeholder="Cari berdasarkan nama produk..." aria-label="Search" name="q" value="{{ search_query | default('') }}">
+            <input type="hidden" name="category" value="{{ selected_category | default('all') }}"> {# Maintain category when searching #}
+            <button class="btn btn-outline-success rounded-pill" type="submit">
+                <i class="fas fa-search"></i> Cari
+            </button>
+            {% if search_query %}
+                <a href="{{ url_for('index', category=selected_category | default('all')) }}" class="btn btn-outline-secondary ms-2 rounded-pill">
+                    <i class="fas fa-times-circle"></i> Reset
+                </a>
+            {% endif %}
+        </form>
+    </div>
+
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+        {% if products %}
+            {% for product in products %}
+            <div class="col">
+                <div class="card h-100 shadow-sm rounded-3">
+                    {% if product.image_url %}
+                        <img src="{{ product.image_url }}" class="card-img-top p-3 rounded-top-3" alt="{{ product.name }}" style="max-height: 200px; object-fit: contain;">
+                    {% else %}
+                        <img src="https://placehold.co/400x200/cccccc/333333?text=Tidak+Ada+Gambar" class="card-img-top p-3 rounded-top-3" alt="Tidak Ada Gambar" style="max-height: 200px; object-fit: contain;">
+                    {% endif %}
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title text-primary">{{ product.name }}</h5>
+                        <p class="card-text text-success fw-bold">Rp {{ "{:,.2f}".format(product.price) }}</p>
+                        {# Display category if available #}
+                        {% if product.category %}
+                            <p class="card-text text-muted small"><span class="badge bg-secondary"><i class="fas fa-folder"></i> {{ product.category }}</span></p>
+                        {% endif %}
+                        <p class="card-text text-muted flex-grow-1">{{ (product.description[:100] + '...') | nl2br }}</p>
+                        <div class="mt-3 d-flex flex-wrap align-items-center gap-2">
+                            <a href="{{ url_for('product_detail', id=product._id) }}" class="btn btn-outline-info btn-sm rounded-pill">
+                                <i class="fas fa-info-circle"></i> Detail
+                            </a>
+                            <form action="{{ url_for('add_to_cart', product_id=product._id) }}" method="POST" class="d-inline">
+                                <button type="submit" class="btn btn-primary btn-sm rounded-pill">
+                                    <i class="fas fa-cart-plus"></i> Tambah ke Keranjang
+                                </button>
+                            </form>
+                            {% if is_admin_logged_in %} {# Only show if admin is logged in #}
+                                <a href="{{ url_for('edit_product', id=product._id) }}" class="btn btn-outline-warning btn-sm rounded-pill">
+                                    <i class="fas fa-edit"></i> Edit
+                                </a>
+                                <form action="{{ url_for('delete_product', id=product._id) }}" method="POST" class="d-inline">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill" onclick="return confirm('Apakah Anda yakin ingin menghapus produk ini?');">
+                                        <i class="fas fa-trash-alt"></i> Hapus
+                                    </button>
+                                </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="col-12 text-center">
+                <p class="lead">Tidak ada produk yang ditemukan sesuai kriteria Anda.</p>
+                {% if not search_query and not selected_category %}
+                    <a href="{{ url_for('add_product') }}" class="btn btn-primary rounded-pill mt-3">
+                        <i class="fas fa-plus"></i> Tambahkan produk sekarang!
+                    </a>
+                {% elif search_query %}
+                    <a href="{{ url_for('index', category=selected_category | default('all')) }}" class="btn btn-secondary mt-3 rounded-pill">
+                        <i class="fas fa-undo"></i> Tampilkan semua produk
+                    </a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+{% endblock %}

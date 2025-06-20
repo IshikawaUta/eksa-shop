@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+
+{% block title %}Keranjang Belanja{% endblock %}
+
+{% block content %}
+    <h1 class="mb-4 text-center">Keranjang Belanja Anda</h1>
+
+    {% if cart_items %}
+        <div class="card shadow-sm rounded-3 p-4">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th scope="col">Produk</th>
+                            <th scope="col">Harga</th>
+                            <th scope="col" class="text-center">Kuantitas</th>
+                            <th scope="col" class="text-end">Subtotal</th>
+                            <th scope="col" class="text-center">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in cart_items %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    {% if item.image_url %}
+                                        <img src="{{ item.image_url }}" alt="{{ item.name }}" class="me-3 rounded" style="width: 60px; height: 60px; object-fit: contain;">
+                                    {% else %}
+                                        <img src="https://placehold.co/60x60/cccccc/333333?text=No+Img" alt="Tidak Ada Gambar" class="me-3 rounded" style="width: 60px; height: 60px; object-fit: contain;">
+                                    {% endif %}
+                                    <span>{{ item.name }}</span>
+                                </div>
+                            </td>
+                            <td>Rp {{ "{:,.2f}".format(item.price) }}</td>
+                            <td class="text-center">
+                                <form action="{{ url_for('remove_from_cart', product_id=item.id) }}" method="POST" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger rounded-circle me-1" {% if item.quantity <= 1 %}disabled{% endif %}>-</button>
+                                </form>
+                                {{ item.quantity }}
+                                <form action="{{ url_for('add_to_cart', product_id=item.id) }}" method="POST" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-success rounded-circle ms-1">+</button>
+                                </form>
+                            </td>
+                            <td class="text-end">Rp {{ "{:,.2f}".format(item.subtotal) }}</td>
+                            <td class="text-center">
+                                <form action="{{ url_for('clear_item_from_cart', product_id=item.id) }}" method="POST" class="d-inline">
+                                    <button type="submit" class="btn btn-danger btn-sm rounded-pill" onclick="return confirm('Hapus semua kuantitas produk ini dari keranjang?');">Hapus</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="3" class="text-end fw-bold fs-5">Total Keseluruhan:</td>
+                            <td class="text-end fw-bold fs-5 text-primary">Rp {{ "{:,.2f}".format(total_price) }}</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                <a href="{{ url_for('index') }}" class="btn btn-secondary btn-lg rounded-pill" style="font-size: 1rem;">Lanjutkan Belanja</a>
+                <button type="button" class="btn btn-success btn-lg rounded-pill" id="checkoutBtn" style="font-size: 1rem;">Checkout Via WhatsApp</button>
+            </div>
+        </div>
+    {% else %}
+        <div class="alert alert-info text-center" role="alert">
+            Keranjang belanja Anda kosong.
+            <p class="mt-2"><a href="{{ url_for('index') }}" class="alert-link">Mulai belanja sekarang!</a></p>
+        </div>
+    {% endif %}
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const checkoutBtn = document.getElementById('checkoutBtn');
+            if (checkoutBtn) {
+                checkoutBtn.addEventListener('click', function() {
+                    let message = "Halo, saya ingin memesan produk berikut:\n\n";
+                    let totalHarga = 0;
+
+                    const cartItems = [
+                        {% for item in cart_items %}
+                            {
+                                name: "{{ item.name | escapejs }}",
+                                quantity: {{ item.quantity }},
+                                price: {{ item.price }},
+                                subtotal: {{ item.subtotal }}
+                            },
+                        {% endfor %}
+                    ];
+
+                    cartItems.forEach(item => {
+                        message += `- ${item.name} (x${item.quantity}) - Rp ${item.subtotal.toLocaleString('id-ID')}\n`;
+                        totalHarga += item.subtotal;
+                    });
+
+                    message += `\nTotal Harga: Rp ${totalHarga.toLocaleString('id-ID')}\n`;
+                    message += "\nMohon konfirmasi pesanan saya. Terima kasih!";
+
+                    const encodedMessage = encodeURIComponent(message);
+                    
+                    const whatsappNumber = "+62895701060973";
+
+                    const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodedMessage}`;
+                    
+                    window.open(whatsappUrl, '_blank');
+                });
+            }
+        });
+    </script>
+{% endblock %}
