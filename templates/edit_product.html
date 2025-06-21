@@ -2,8 +2,30 @@
 
 {% block title %}Edit Produk{% endblock %}
 
+{% block head %}
+    {{ super() }}
+    <style>
+        /* Custom styling for the delete image button on thumbnails */
+        .delete-image-btn-custom {
+            position: absolute;
+            top: -10px;   /* Atur posisi vertikal (negatif untuk keluar dari batas atas) */
+            right: -10px; /* Atur posisi horizontal (negatif untuk keluar dari batas kanan) */
+            width: 28px;  /* Ukuran tombol lebih besar */
+            height: 28px; /* Ukuran tombol lebih besar */
+            font-size: 16px; /* Ukuran font 'X' lebih besar */
+            line-height: 1; /* Pastikan 'X' terpusat secara vertikal */
+            padding: 0;   /* Hapus padding bawaan */
+            display: flex; /* Gunakan flexbox untuk perataan sempurna */
+            justify-content: center; /* Pusatkan horizontal */
+            align-items: center; /* Pusatkan vertikal */
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3); /* Tambahkan bayangan untuk tampilan yang lebih menonjol */
+            z-index: 10; /* Pastikan tombol di atas gambar */
+        }
+    </style>
+{% endblock %}
+
 {% block content %}
-    <h1 class="mb-4 text-center">Edit Produk</h1>
+    <h1 class="mb-4 text-center" style="font-size: 1.5rem;">Edit Produk</h1>
     <div class="card shadow-sm rounded-3 mx-auto" style="max-width: 600px;">
         <div class="card-body p-4">
             <form method="POST" action="{{ url_for('edit_product', id=product._id) }}" enctype="multipart/form-data" id="editProductForm">
@@ -31,7 +53,7 @@
                             {% for image_url in product.image_urls %}
                                 <div class="position-relative border rounded-3 overflow-hidden d-flex justify-content-center align-items-center" style="width: 100px; height: 100px; background-color: #f8f9fa;">
                                     <img src="{{ image_url }}" alt="Gambar Produk" class="img-fluid" style="max-width: 100%; max-height: 100%; object-fit: contain;" data-image-url="{{ image_url }}">
-                                    <button type="button" class="btn btn-danger btn-sm rounded-circle position-absolute top-0 end-0 translate-middle" style="width: 24px; height: 24px; font-size: 12px; line-height: 1; padding: 0;" data-action="delete-image">
+                                    <button type="button" class="btn btn-danger btn-sm rounded-circle delete-image-btn-custom" data-action="delete-image">
                                         &times;
                                     </button>
                                 </div>
