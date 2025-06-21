@@ -36,7 +36,7 @@
                     {% endif %}
                     {# Menggunakan filter nl2br untuk menampilkan baris baru di deskripsi #}
                     <p class="card-text text-muted flex-grow-1">{{ product.description | nl2br }}</p>
-                    <p class="card-text fs-4 text-success fw-bold">Harga: Rp {{ "{:,.2f}".format(product.price) }}</p>
+                    <p class="card-text fs-6 text-success fw-bold">Harga: Rp {{ "{:,.2f}".format(product.price) }}</p>
                     <div class="mt-auto d-flex flex-wrap align-items-center gap-2">
                         <form action="{{ url_for('add_to_cart', product_id=product._id) }}" method="POST" class="d-inline">
                             <button type="submit" class="btn btn-primary rounded-pill">

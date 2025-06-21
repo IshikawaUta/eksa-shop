@@ -3,7 +3,7 @@
 {% block title %}Edit Produk{% endblock %}
 
 {% block content %}
-    <h1 class="mb-4 text-center">Edit Produk</h1>
+    <h1 class="mb-4 text-center" style="font-size: 1.5rem;">Edit Produk</h1>
     <div class="card shadow-sm rounded-3 mx-auto" style="max-width: 600px;">
         <div class="card-body p-4">
             <form method="POST" action="{{ url_for('edit_product', id=product._id) }}" enctype="multipart/form-data">
