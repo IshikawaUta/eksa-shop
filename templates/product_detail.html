@@ -17,7 +17,7 @@
 {% endblock %}
 
 {% block content %}
-    <h1 class="mb-4 text-center" style="font-size: 1.5rem;">{{ product.name }}</h1>
+    <h1 class="mb-4 text-center" style="font-size: 1.2rem;">{{ product.name }}</h1>
     <div class="card shadow-sm rounded-3 mx-auto" style="max-width: 800px;">
         <div class="row g-0">
             <div class="col-md-5 d-flex align-items-center justify-content-center p-3">
@@ -39,7 +39,7 @@
                                     {# Tambahkan data-bs-toggle dan data-bs-target untuk modal #}
                                     <img src="{{ image_url }}" class="d-block w-100 img-fluid clickable-image" 
                                         alt="{{ product.name }} - Gambar {{ loop.index }}" 
-                                        style="max-height: 400px; object-fit: contain; cursor: pointer;border: 2px solid rgb(200, 200, 200);border-radius: 5px;"
+                                        style="max-height: 400px; object-fit: contain; cursor: pointer;"
                                         data-bs-toggle="modal" data-bs-target="#imageModal" data-image-index="{{ loop.index0 }}">
                                 </div>
                             {% endfor %}
@@ -58,12 +58,12 @@
                         {% endif %}
                     </div>
                 {% else %}
-                    <img src="https://placehold.co/400x400/cccccc/333333?text=Tidak+Ada+Gambar" class="img-fluid rounded-3" alt="Tidak Ada Gambar" style="max-height: 400px; object-fit: contain;border: 2px solid rgb(200, 200, 200);border-radius: 5px;">
+                    <img src="https://placehold.co/400x400/cccccc/333333?text=Tidak+Ada+Gambar" class="img-fluid rounded-3" alt="Tidak Ada Gambar" style="max-height: 400px; object-fit: contain;">
                 {% endif %}
             </div>
             <div class="col-md-7">
                 <div class="card-body d-flex flex-column h-100">
-                    <h2 class="card-title text-primary">{{ product.name }}</h2>
+                    <h2 class="card-title text-primary" style="font-size: 1.2rem;">{{ product.name }}</h2>
                     {% if product.category %}
                         <h6 class="card-subtitle mb-2 text-muted">Kategori: <span class="badge bg-info"><i class="fas fa-folder"></i> {{ product.category }}</span></h6>
                     {% endif %}
