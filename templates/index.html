@@ -3,17 +3,17 @@
 {% block title %}Daftar Produk{% endblock %}
 
 {% block content %}
-    <h1 class="mb-4 text-center" style="font-size: 1.5rem;">Daftar Produk</h1>
+    <h1 class="mb-4 text-center">Daftar Produk</h1>
 
     {# Filter Kategori #}
     <div class="mb-4 p-3 bg-white rounded-3 shadow-sm">
         <h5 class="mb-3">Filter Berdasarkan Kategori:</h5>
         <div class="d-flex flex-wrap gap-2">
-            <a href="{{ url_for('index', category='all', q=search_query) }}" class="btn {% if selected_category == 'all' or selected_category == None %}btn-primary{% else %}btn-outline-primary{% endif %} rounded-pill">
+            <a href="{{ url_for('index', category='all', q=search_query, page=1) }}" class="btn {% if selected_category == 'all' or selected_category == None %}btn-primary{% else %}btn-outline-primary{% endif %} rounded-pill">
                 <i class="fas fa-th-large"></i> Semua
             </a>
             {% for category in all_categories %}
-                <a href="{{ url_for('index', category=category, q=search_query) }}" class="btn {% if selected_category == category %}btn-primary{% else %}btn-outline-primary{% endif %} rounded-pill">
+                <a href="{{ url_for('index', category=category, q=search_query, page=1) }}" class="btn {% if selected_category == category %}btn-primary{% else %}btn-outline-primary{% endif %} rounded-pill">
                     <i class="fas fa-tag"></i> {{ category }}
                 </a>
             {% endfor %}
@@ -25,13 +25,14 @@
         <h5 class="mb-3">Cari Produk:</h5>
         <form class="d-flex" action="{{ url_for('index') }}" method="GET">
             <input class="form-control me-2 rounded-pill" type="search" placeholder="Cari berdasarkan nama produk..." aria-label="Search" name="q" value="{{ search_query | default('') }}">
-            <input type="hidden" name="category" value="{{ selected_category | default('all') }}"> {# Maintain category when searching #}
+            <input type="hidden" name="category" value="{{ selected_category | default('all') }}"> {# Pertahankan kategori saat mencari #}
+            <input type="hidden" name="page" value="1"> {# Reset ke halaman 1 saat mencari #}
             <button class="btn btn-outline-success rounded-pill" type="submit">
                 <i class="fas fa-search"></i> Cari
             </button>
-            {% if search_query %}
-                <a href="{{ url_for('index', category=selected_category | default('all')) }}" class="btn btn-outline-secondary ms-2 rounded-pill">
-                    <i class="fas fa-times-circle"></i> Reset
+            {% if search_query or selected_category != 'all' %}
+                <a href="{{ url_for('index', category='all', q='') }}" class="btn btn-outline-secondary ms-2 rounded-pill">
+                    <i class="fas fa-times-circle"></i> Reset Filter
                 </a>
             {% endif %}
         </form>
@@ -42,15 +43,15 @@
             {% for product in products %}
             <div class="col">
                 <div class="card h-100 shadow-sm rounded-3">
-                    {% if product.image_url %}
-                        <img src="{{ product.image_url }}" class="card-img-top p-3 rounded-top-3" alt="{{ product.name }}" style="max-height: 200px; object-fit: contain;border: 1px solid rgb(206, 206, 206); border-radius: 5px;">
+                    {% if product.image_urls %} {# Cek apakah ada daftar gambar #}
+                        <img src="{{ product.image_urls[0] }}" class="card-img-top p-3 rounded-top-3" alt="{{ product.name }}" style="max-height: 200px; object-fit: contain;">
                     {% else %}
-                        <img src="https://placehold.co/400x200/cccccc/333333?text=Tidak+Ada+Gambar" class="card-img-top p-3 rounded-top-3" alt="Tidak Ada Gambar" style="max-height: 200px; object-fit: contain;border: 1px solid rgb(206, 206, 206); border-radius: 5px;">
+                        <img src="https://placehold.co/400x200/cccccc/333333?text=Tidak+Ada+Gambar" class="card-img-top p-3 rounded-top-3" alt="Tidak Ada Gambar" style="max-height: 200px; object-fit: contain;">
                     {% endif %}
                     <div class="card-body d-flex flex-column">
                         <h5 class="card-title text-primary">{{ product.name }}</h5>
                         <p class="card-text text-success fw-bold">Rp {{ "{:,.2f}".format(product.price) }}</p>
-                        {# Display category if available #}
+                        {# Tampilkan kategori jika ada #}
                         {% if product.category %}
                             <p class="card-text text-muted small"><span class="badge bg-secondary"><i class="fas fa-folder"></i> {{ product.category }}</span></p>
                         {% endif %}
@@ -64,7 +65,7 @@
                                     <i class="fas fa-cart-plus"></i> Tambah ke Keranjang
                                 </button>
                             </form>
-                            {% if is_admin_logged_in %} {# Only show if admin is logged in #}
+                            {% if is_admin_logged_in %}
                                 <a href="{{ url_for('edit_product', id=product._id) }}" class="btn btn-outline-warning btn-sm rounded-pill">
                                     <i class="fas fa-edit"></i> Edit
                                 </a>
@@ -82,16 +83,40 @@
         {% else %}
             <div class="col-12 text-center">
                 <p class="lead">Tidak ada produk yang ditemukan sesuai kriteria Anda.</p>
-                {% if not search_query and not selected_category %}
+                {% if not search_query and selected_category == 'all' %}
                     <a href="{{ url_for('add_product') }}" class="btn btn-primary rounded-pill mt-3">
                         <i class="fas fa-plus"></i> Tambahkan produk sekarang!
                     </a>
-                {% elif search_query %}
-                    <a href="{{ url_for('index', category=selected_category | default('all')) }}" class="btn btn-secondary mt-3 rounded-pill">
+                {% else %}
+                    <a href="{{ url_for('index', category='all', q='') }}" class="btn btn-secondary mt-3 rounded-pill">
                         <i class="fas fa-undo"></i> Tampilkan semua produk
                     </a>
                 {% endif %}
             </div>
         {% endif %}
     </div>
+
+    {# Pagination Controls #}
+    {% if total_pages > 1 %}
+    <nav aria-label="Navigasi Halaman Produk" class="mt-5">
+        <ul class="pagination justify-content-center flex-wrap">
+            <li class="page-item {% if current_page == 1 %}disabled{% endif %}">
+                <a class="page-link" href="{{ url_for('index', page=current_page - 1, q=search_query, category=selected_category) }}" aria-label="Previous">
+                    <span aria-hidden="true">&laquo;</span>
+                </a>
+            </li>
+            {% for p in range(1, total_pages + 1) %}
+                <li class="page-item {% if p == current_page %}active{% endif %}">
+                    <a class="page-link" href="{{ url_for('index', page=p, q=search_query, category=selected_category) }}">{{ p }}</a>
+                </li>
+            {% endfor %}
+            <li class="page-item {% if current_page == total_pages %}disabled{% endif %}">
+                <a class="page-link" href="{{ url_for('index', page=current_page + 1, q=search_query, category=selected_category) }}" aria-label="Next">
+                    <span aria-hidden="true">&raquo;</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+    {% endif %}
+
 {% endblock %}

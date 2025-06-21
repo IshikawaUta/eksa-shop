@@ -9,6 +9,7 @@ import requests
 from dotenv import load_dotenv
 import re
 from werkzeug.security import generate_password_hash, check_password_hash
+from math import ceil
 
 # Muat variabel lingkungan dari file .env
 load_dotenv()
@@ -19,19 +20,16 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.join(current_dir, "..")
 
 # Inisialisasi aplikasi Flask
-# Secara eksplisit memberitahu Flask di mana folder template berada relatif terhadap root proyek
 app = Flask(__name__, root_path=project_root, template_folder="templates")
 
 # SECRET_KEY harus diatur sebagai Environment Variable di Vercel
 app.secret_key = os.getenv('SECRET_KEY') 
 if not app.secret_key:
-    # Fallback untuk pengembangan lokal jika .env belum dimuat dengan benar
     print("Warning: SECRET_KEY not set. Session will not be secure.")
     app.secret_key = 'temporary_insecure_key_for_dev_only'
 
 
 # Konfigurasi MongoDB Atlas
-# MONGO_URI harus diatur sebagai Environment Variable di Vercel
 MONGO_URI = os.getenv('MONGO_URI')
 if not MONGO_URI:
     raise ValueError("MONGO_URI environment variable not set. Please set it in Vercel.")
@@ -42,26 +40,28 @@ products_collection = db['products']
 users_collection = db['users']
 
 # Konfigurasi Imgur API
-# IMGUR_CLIENT_ID harus diatur sebagai Environment Variable di Vercel
 IMGUR_CLIENT_ID = os.getenv('IMGUR_CLIENT_ID')
 if not IMGUR_CLIENT_ID:
     print("Warning: IMGUR_CLIENT_ID not set. Imgur upload will not work.")
 IMGUR_UPLOAD_URL = "https://api.imgur.com/3/image"
 
 
-# Fungsi untuk mengunggah gambar ke Imgur
-def upload_image_to_imgur(image_file):
+# Konstanta Paginasi
+PER_PAGE = 9 # Jumlah produk per halaman
+
+# Fungsi untuk mengunggah satu gambar ke Imgur
+def upload_single_image_to_imgur(image_file_stream):
     """
-    Mengunggah file gambar ke Imgur dan mengembalikan URL gambar.
+    Mengunggah satu stream file gambar ke Imgur dan mengembalikan URL gambar.
     """
     if not IMGUR_CLIENT_ID:
         flash("Imgur Client ID tidak diatur, unggah gambar tidak berfungsi.", 'danger')
         return None
-    if not image_file:
+    if not image_file_stream:
         return None
 
     headers = {'Authorization': f'Client-ID {IMGUR_CLIENT_ID}'}
-    files = {'image': image_file.read()}
+    files = {'image': image_file_stream.read()}
 
     try:
         response = requests.post(IMGUR_UPLOAD_URL, headers=headers, files=files)
@@ -70,10 +70,10 @@ def upload_image_to_imgur(image_file):
         if data['success']:
             return data['data']['link']
         else:
-            flash(f"Gagal mengunggah gambar ke Imgur: {data.get('data', {}).get('error', 'Kesalahan tidak diketahui')}", 'danger')
+            print(f"Imgur upload error: {data.get('data', {}).get('error', 'Unknown error')}")
             return None
     except requests.exceptions.RequestException as e:
-        flash(f"Kesalahan koneksi saat mengunggah gambar: {e}", 'danger')
+        print(f"Connection error during Imgur upload: {e}")
         return None
 
 # Filter kustom nl2br
@@ -138,9 +138,10 @@ def login_required(f):
 
 @app.route('/')
 def index():
-    """Menampilkan daftar semua produk, dengan opsi filter kategori dan pencarian."""
+    """Menampilkan daftar semua produk, dengan opsi filter kategori, pencarian, dan paginasi."""
     selected_category_param = request.args.get('category')
     search_query = request.args.get('q', '').strip()
+    page = request.args.get('page', 1, type=int)
 
     query = {}
     selected_category_for_template = selected_category_param
@@ -153,17 +154,32 @@ def index():
     if search_query:
         query['name'] = {'$regex': re.compile(search_query, re.IGNORECASE)}
 
-    print(f"MongoDB Query: {query}")
+    total_products = products_collection.count_documents(query)
+    total_pages = ceil(total_products / PER_PAGE)
+    
+    if total_pages > 0 and page > total_pages:
+        page = total_pages
+    elif total_pages == 0:
+        page = 1
 
-    products = list(products_collection.find(query))
+    skip_count = (page - 1) * PER_PAGE
+    
+    products = list(products_collection.find(query).skip(skip_count).limit(PER_PAGE))
     
     all_categories = sorted(list(set(p['category'] for p in products_collection.find({}, {'category': 1}) if p.get('category'))))
+
+    print(f"MongoDB Query: {query}, Page: {page}, Skip: {skip_count}, Limit: {PER_PAGE}, Total Products: {total_products}")
+
 
     return render_template('index.html', 
                            products=products, 
                            all_categories=all_categories, 
                            selected_category=selected_category_for_template,
-                           search_query=search_query)
+                           search_query=search_query,
+                           current_page=page,
+                           total_pages=total_pages,
+                           total_products=total_products
+                           )
 
 @app.route('/add_product', methods=['GET', 'POST'])
 @admin_required
@@ -174,20 +190,27 @@ def add_product():
         description = request.form['description']
         price = float(request.form['price'])
         category = request.form['category'].strip() 
-        image_file = request.files.get('image')
+        
+        image_files = request.files.getlist('images') # Menggunakan 'images' (plural)
+        uploaded_image_urls = []
 
-        image_url = None
-        if image_file and image_file.filename != '':
-            image_url = upload_image_to_imgur(image_file)
-            if not image_url:
-                return render_template('add_product.html')
+        for img_file in image_files:
+            if img_file and img_file.filename != '':
+                image_url = upload_single_image_to_imgur(img_file)
+                if image_url:
+                    uploaded_image_urls.append(image_url)
+        
+        # Jika tidak ada gambar yang diunggah dan tidak ada gambar yang berhasil diunggah
+        if not uploaded_image_urls and any(f.filename for f in image_files):
+            flash('Gagal mengunggah beberapa atau semua gambar.', 'danger')
+            return render_template('add_product.html')
 
         product_data = {
             'name': name,
             'description': description,
             'price': price,
             'category': category,
-            'image_url': image_url
+            'image_urls': uploaded_image_urls # Menyimpan sebagai array
         }
         products_collection.insert_one(product_data)
         flash('Produk berhasil ditambahkan!', 'success')
@@ -199,6 +222,11 @@ def product_detail(id):
     """Menampilkan detail satu produk."""
     product = products_collection.find_one({'_id': ObjectId(id)})
     if product:
+        # Untuk kompatibilitas mundur dengan produk lama yang mungkin hanya punya 'image_url' (string)
+        if 'image_url' in product and not isinstance(product.get('image_urls'), list):
+            product['image_urls'] = [product['image_url']]
+        elif 'image_urls' not in product:
+            product['image_urls'] = [] # Pastikan selalu ada list kosong
         return render_template('product_detail.html', product=product)
     flash('Produk tidak ditemukan.', 'danger')
     return redirect(url_for('index'))
@@ -212,20 +240,43 @@ def edit_product(id):
         flash('Produk tidak ditemukan.', 'danger')
         return redirect(url_for('index'))
 
+    # Untuk kompatibilitas mundur: pastikan image_urls adalah list
+    if 'image_url' in product and not isinstance(product.get('image_urls'), list):
+        current_image_urls = [product['image_url']]
+    else:
+        current_image_urls = product.get('image_urls', [])
+
     if request.method == 'POST':
         name = request.form['name']
         description = request.form['description']
         price = float(request.form['price'])
         category = request.form['category'].strip() 
-        image_file = request.files.get('image')
+        
+        # Dapatkan daftar URL gambar yang akan dipertahankan dari formulir
+        # Jika tidak ada yang dikirim (misal, semua dihapus), ini akan menjadi string kosong,
+        # jadi kita pecah berdasarkan koma dan filter string kosong.
+        kept_image_urls_str = request.form.get('kept_image_urls', '')
+        kept_image_urls = [url.strip() for url in kept_image_urls_str.split(',') if url.strip()]
 
-        image_url = product.get('image_url') 
-        if image_file and image_file.filename != '':
-            new_image_url = upload_image_to_imgur(image_file)
-            if new_image_url:
-                image_url = new_image_url
-            else:
-                return render_template('edit_product.html', product=product)
+        # Tangani file gambar baru yang diunggah
+        new_image_files = request.files.getlist('new_images')
+        uploaded_new_image_urls = []
+
+        for img_file in new_image_files:
+            if img_file and img_file.filename != '':
+                image_url = upload_single_image_to_imgur(img_file)
+                if image_url:
+                    uploaded_new_image_urls.append(image_url)
+
+        # Gabungkan gambar yang dipertahankan dengan gambar yang baru diunggah
+        final_image_urls = kept_image_urls + uploaded_new_image_urls
+        
+        # Validasi: Jika tidak ada gambar sama sekali setelah edit/hapus
+        if not final_image_urls:
+            flash('Produk harus memiliki setidaknya satu gambar. Tidak ada gambar yang disimpan.', 'danger')
+            # Kembali ke halaman edit, tampilkan gambar yang awalnya ada
+            product['image_urls'] = current_image_urls
+            return render_template('edit_product.html', product=product)
 
         products_collection.update_one(
             {'_id': ObjectId(id)},
@@ -234,12 +285,13 @@ def edit_product(id):
                 'description': description,
                 'price': price,
                 'category': category,
-                'image_url': image_url
+                'image_urls': final_image_urls # Simpan sebagai array
             }}
         )
         flash('Produk berhasil diperbarui!', 'success')
         return redirect(url_for('product_detail', id=id))
 
+    product['image_urls'] = current_image_urls # Pastikan product object yang dikirim ke template juga punya list
     return render_template('edit_product.html', product=product)
 
 @app.route('/delete_product/<id>', methods=['POST'])
@@ -265,10 +317,12 @@ def add_to_cart(product_id):
         if product_id in session['cart']:
             session['cart'][product_id]['quantity'] += 1
         else:
+            # Di keranjang, kita hanya menyimpan gambar pertama untuk tampilan
+            first_image_url = product.get('image_urls', [None])[0] 
             session['cart'][product_id] = {
                 'name': product['name'],
                 'price': product['price'],
-                'image_url': product.get('image_url'),
+                'image_url': first_image_url,
                 'quantity': 1
             }
         session.modified = True
@@ -419,3 +473,4 @@ def create_first_admin():
         flash(f'Akun admin "{username}" berhasil dibuat! Silakan login.', 'success')
         return redirect(url_for('login'))
     return render_template('create_first_admin.html')
+

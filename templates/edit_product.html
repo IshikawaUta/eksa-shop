@@ -3,10 +3,10 @@
 {% block title %}Edit Produk{% endblock %}
 
 {% block content %}
-    <h1 class="mb-4 text-center" style="font-size: 1.5rem;">Edit Produk</h1>
+    <h1 class="mb-4 text-center">Edit Produk</h1>
     <div class="card shadow-sm rounded-3 mx-auto" style="max-width: 600px;">
         <div class="card-body p-4">
-            <form method="POST" action="{{ url_for('edit_product', id=product._id) }}" enctype="multipart/form-data">
+            <form method="POST" action="{{ url_for('edit_product', id=product._id) }}" enctype="multipart/form-data" id="editProductForm">
                 <div class="mb-3">
                     <label for="name" class="form-label">Nama Produk</label>
                     <input type="text" class="form-control rounded-pill" id="name" name="name" value="{{ product.name }}" required>
@@ -23,22 +23,84 @@
                     <label for="price" class="form-label">Harga (Rp)</label>
                     <input type="number" class="form-control rounded-pill" id="price" name="price" step="0.01" value="{{ product.price }}" required>
                 </div>
+                
                 <div class="mb-3">
-                    <label for="current_image" class="form-label">Gambar Saat Ini</label>
-                    {% if product.image_url %}
-                        <img src="{{ product.image_url }}" alt="Gambar Produk" class="img-fluid rounded-3 mb-2" style="max-height: 150px; object-fit: contain;">
-                    {% else %}
-                        <p class="text-muted">Tidak ada gambar saat ini.</p>
-                        <img src="https://placehold.co/400x150/cccccc/333333?text=Tidak+Ada+Gambar" class="img-fluid rounded-3 mb-2" alt="Tidak Ada Gambar" style="max-height: 150px; object-fit: contain;">
-                    {% endif %}
-                    <label for="image" class="form-label mt-2">Unggah Gambar Baru (Biarkan kosong jika tidak ingin mengubah)</label>
-                    <input type="file" class="form-control rounded-pill" id="image" name="image" accept="image/*">
+                    <label class="form-label">Gambar Saat Ini:</label>
+                    <div id="currentImagesContainer" class="d-flex flex-wrap gap-2 mb-3">
+                        {% if product.image_urls %}
+                            {% for image_url in product.image_urls %}
+                                <div class="position-relative border rounded-3 overflow-hidden d-flex justify-content-center align-items-center" style="width: 100px; height: 100px; background-color: #f8f9fa;">
+                                    <img src="{{ image_url }}" alt="Gambar Produk" class="img-fluid" style="max-width: 100%; max-height: 100%; object-fit: contain;" data-image-url="{{ image_url }}">
+                                    <button type="button" class="btn btn-danger btn-sm rounded-circle position-absolute top-0 end-0 translate-middle" style="width: 24px; height: 24px; font-size: 12px; line-height: 1; padding: 0;" data-action="delete-image">
+                                        &times;
+                                    </button>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="text-muted">Tidak ada gambar saat ini.</p>
+                        {% endif %}
+                    </div>
+                    
+                    {# Hidden input to store image URLs to be kept #}
+                    <input type="hidden" name="kept_image_urls" id="keptImageUrlsInput" value="">
+
+                    <label for="new_images" class="form-label mt-2">Unggah Gambar Baru (Pilih lebih dari satu untuk menambah)</label>
+                    <input type="file" class="form-control rounded-pill" id="new_images" name="new_images" accept="image/*" multiple>
+                    <small class="form-text text-muted">Gambar baru akan ditambahkan ke gambar yang ada.</small>
                 </div>
                 <div class="d-grid gap-2 mt-4">
-                    <button type="submit" class="btn btn-primary btn-lg rounded-pill" style="font-size: 1rem;">Perbarui Produk</button>
-                    <a href="{{ url_for('product_detail', id=product._id) }}" class="btn btn-outline-secondary btn-lg rounded-pill" style="font-size: 1rem;">Batal</a>
+                    <button type="submit" class="btn btn-primary btn-lg rounded-pill">Perbarui Produk</button>
+                    <a href="{{ url_for('product_detail', id=product._id) }}" class="btn btn-outline-secondary btn-lg rounded-pill">Batal</a>
                 </div>
             </form>
         </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('editProductForm');
+            const currentImagesContainer = document.getElementById('currentImagesContainer');
+            const keptImageUrlsInput = document.getElementById('keptImageUrlsInput');
+
+            // Initialize kept images based on what's currently displayed
+            let keptImageUrls = [];
+            currentImagesContainer.querySelectorAll('img[data-image-url]').forEach(img => {
+                keptImageUrls.push(img.dataset.imageUrl);
+            });
+            keptImageUrlsInput.value = keptImageUrls.join(',');
+
+            // Add event listener for delete buttons
+            currentImagesContainer.addEventListener('click', function(event) {
+                if (event.target.dataset.action === 'delete-image') {
+                    const imageWrapper = event.target.closest('.position-relative');
+                    const imageUrlToDelete = imageWrapper.querySelector('img').dataset.imageUrl;
+
+                    // Remove URL from the keptImageUrls array
+                    keptImageUrls = keptImageUrls.filter(url => url !== imageUrlToDelete);
+                    keptImageUrlsInput.value = keptImageUrls.join(','); // Update hidden input
+
+                    // Visually remove the image
+                    imageWrapper.remove();
+
+                    // Optional: Provide feedback to the user
+                    if (keptImageUrls.length === 0 && !document.getElementById('noImagesMessage')) {
+                        const noImagesMessage = document.createElement('p');
+                        noImagesMessage.className = 'text-muted';
+                        noImagesMessage.id = 'noImagesMessage';
+                        noImagesMessage.textContent = 'Tidak ada gambar saat ini.';
+                        currentImagesContainer.appendChild(noImagesMessage);
+                    }
+                }
+            });
+
+            // Re-check for no images message if initial load has no images
+            if (keptImageUrls.length === 0 && !document.getElementById('noImagesMessage')) {
+                 const noImagesMessage = document.createElement('p');
+                 noImagesMessage.className = 'text-muted';
+                 noImagesMessage.id = 'noImagesMessage';
+                 noImagesMessage.textContent = 'Tidak ada gambar saat ini.';
+                 currentImagesContainer.appendChild(noImagesMessage);
+            }
+        });
+    </script>
 {% endblock %}
