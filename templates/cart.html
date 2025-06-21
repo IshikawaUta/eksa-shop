@@ -33,13 +33,16 @@
                             </td>
                             <td>Rp {{ "{:,.2f}".format(item.price) }}</td>
                             <td class="text-center">
-                                <form action="{{ url_for('remove_from_cart', product_id=item.id) }}" method="POST" class="d-inline">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger rounded-circle me-1" {% if item.quantity <= 1 %}disabled{% endif %}>-</button>
-                                </form>
-                                {{ item.quantity }}
-                                <form action="{{ url_for('add_to_cart', product_id=item.id) }}" method="POST" class="d-inline">
-                                    <button type="submit" class="btn btn-sm btn-outline-success rounded-circle ms-1">+</button>
-                                </form>
+                                {# Flexbox untuk mengontrol tampilan kuantitas di mobile #}
+                                <div class="d-inline-flex align-items-center justify-content-center">
+                                    <form action="{{ url_for('remove_from_cart', product_id=item.id) }}" method="POST" class="d-inline">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger rounded-circle me-1" {% if item.quantity <= 1 %}disabled{% endif %}>-</button>
+                                    </form>
+                                    <span class="mx-1">{{ item.quantity }}</span> {# Memberi sedikit jarak #}
+                                    <form action="{{ url_for('add_to_cart', product_id=item.id) }}" method="POST" class="d-inline">
+                                        <button type="submit" class="btn btn-sm btn-outline-success rounded-circle ms-1">+</button>
+                                    </form>
+                                </div>
                             </td>
                             <td class="text-end">Rp {{ "{:,.2f}".format(item.subtotal) }}</td>
                             <td class="text-center">
@@ -52,9 +55,13 @@
                     </tbody>
                     <tfoot>
                         <tr>
-                            <td colspan="3" class="text-end fw-bold fs-5">Total Keseluruhan:</td>
-                            <td class="text-end fw-bold fs-5 text-primary">Rp {{ "{:,.2f}".format(total_price) }}</td>
-                            <td></td>
+                            {# Gunakan col-12 dan text-center untuk mobile, atau text-end untuk desktop #}
+                            <td colspan="5" class="text-md-end text-center fw-bold fs-6 pt-3">
+                                <div class="d-flex justify-content-center justify-content-md-end align-items-baseline">
+                                    <span class="me-2">Total Keseluruhan:</span>
+                                    <span class="text-primary">Rp {{ "{:,.2f}".format(total_price) }}</span>
+                                </div>
+                            </td>
                         </tr>
                     </tfoot>
                 </table>
@@ -100,7 +107,7 @@
 
                     const encodedMessage = encodeURIComponent(message);
                     
-                    const whatsappNumber = "+62895701060973";
+                    const whatsappNumber = "+62895701060973"; 
 
                     const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodedMessage}`;
                     
