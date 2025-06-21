@@ -47,7 +47,7 @@ IMGUR_UPLOAD_URL = "https://api.imgur.com/3/image"
 
 
 # Konstanta Paginasi
-PER_PAGE = 9 # Jumlah produk per halaman
+PER_PAGE = 3 # Jumlah produk per halaman
 
 # Fungsi untuk mengunggah satu gambar ke Imgur
 def upload_single_image_to_imgur(image_file_stream):
