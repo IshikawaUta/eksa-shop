@@ -44,9 +44,9 @@
             <div class="col">
                 <div class="card h-100 shadow-sm rounded-3">
                     {% if product.image_urls %} {# Cek apakah ada daftar gambar #}
-                        <img src="{{ product.image_urls[0] }}" class="card-img-top p-3 rounded-top-3" alt="{{ product.name }}" style="max-height: 200px; object-fit: contain;border: 1px solid gray;border-radius: 5px;">
+                        <img src="{{ product.image_urls[0] }}" class="card-img-top p-3 rounded-top-3" alt="{{ product.name }}" style="max-height: 200px; object-fit: contain;border: 1px solid rgb(200, 200, 200);border-radius: 5px;">
                     {% else %}
-                        <img src="https://placehold.co/400x200/cccccc/333333?text=Tidak+Ada+Gambar" class="card-img-top p-3 rounded-top-3" alt="Tidak Ada Gambar" style="max-height: 200px; object-fit: contain;border: 1px solid gray;border-radius: 5px;">
+                        <img src="https://placehold.co/400x200/cccccc/333333?text=Tidak+Ada+Gambar" class="card-img-top p-3 rounded-top-3" alt="Tidak Ada Gambar" style="max-height: 200px; object-fit: contain;border: 1px solid rgb(200, 200, 200);border-radius: 5px;">
                     {% endif %}
                     <div class="card-body d-flex flex-column">
                         <h5 class="card-title text-primary">{{ product.name }}</h5>

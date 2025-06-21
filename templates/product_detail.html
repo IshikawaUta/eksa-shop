@@ -39,7 +39,7 @@
                                     {# Tambahkan data-bs-toggle dan data-bs-target untuk modal #}
                                     <img src="{{ image_url }}" class="d-block w-100 img-fluid clickable-image" 
                                         alt="{{ product.name }} - Gambar {{ loop.index }}" 
-                                        style="max-height: 400px; object-fit: contain; cursor: pointer;border: 1px solid gray;border-radius: 5px;"
+                                        style="max-height: 400px; object-fit: contain; cursor: pointer;border: 2px solid rgb(200, 200, 200);border-radius: 5px;"
                                         data-bs-toggle="modal" data-bs-target="#imageModal" data-image-index="{{ loop.index0 }}">
                                 </div>
                             {% endfor %}
@@ -58,7 +58,7 @@
                         {% endif %}
                     </div>
                 {% else %}
-                    <img src="https://placehold.co/400x400/cccccc/333333?text=Tidak+Ada+Gambar" class="img-fluid rounded-3" alt="Tidak Ada Gambar" style="max-height: 400px; object-fit: contain;border: 1px solid gray;border-radius: 5px;">
+                    <img src="https://placehold.co/400x400/cccccc/333333?text=Tidak+Ada+Gambar" class="img-fluid rounded-3" alt="Tidak Ada Gambar" style="max-height: 400px; object-fit: contain;border: 2px solid rgb(200, 200, 200);border-radius: 5px;">
                 {% endif %}
             </div>
             <div class="col-md-7">
