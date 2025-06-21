@@ -23,9 +23,9 @@
         <div class="row g-0">
             <div class="col-md-5">
                 {% if product.image_url %}
-                    <img src="{{ product.image_url }}" class="img-fluid rounded-start-3 p-3" alt="{{ product.name }}" style="max-height: 400px; object-fit: contain;">
+                    <img src="{{ product.image_url }}" class="img-fluid rounded-start-3 p-3" alt="{{ product.name }}" style="max-height: 400px; object-fit: contain;border: 1px solid rgb(206, 206, 206); border-radius: 5px;">
                 {% else %}
-                    <img src="https://placehold.co/400x400/cccccc/333333?text=Tidak+Ada+Gambar" class="img-fluid rounded-start-3 p-3" alt="Tidak Ada Gambar" style="max-height: 400px; object-fit: contain;">
+                    <img src="https://placehold.co/400x400/cccccc/333333?text=Tidak+Ada+Gambar" class="img-fluid rounded-start-3 p-3" alt="Tidak Ada Gambar" style="max-height: 400px; object-fit: contain;border: 1px solid rgb(206, 206, 206); border-radius: 5px;">
                 {% endif %}
             </div>
             <div class="col-md-7">
