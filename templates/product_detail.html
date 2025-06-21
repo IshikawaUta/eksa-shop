@@ -17,10 +17,10 @@
 {% endblock %}
 
 {% block content %}
-    <!-- <h1 class="mb-4 text-center">{{ product.name }}</h1> -->
+    <h1 class="mb-4 text-center" style="font-size: 1.5rem;">{{ product.name }}</h1>
     <div class="card shadow-sm rounded-3 mx-auto" style="max-width: 800px;">
         <div class="row g-0">
-            <div class="col-md-5 d-flex align-items-center justify-content-center p-3"> {# Tambahkan padding dan centering #}
+            <div class="col-md-5 d-flex align-items-center justify-content-center p-3">
                 {% if product.image_urls %}
                     <div id="productCarousel" class="carousel slide w-100" data-bs-ride="carousel">
                         {# Carousel Indicators #}
@@ -36,13 +36,17 @@
                         <div class="carousel-inner rounded-3">
                             {% for image_url in product.image_urls %}
                                 <div class="carousel-item {% if loop.first %}active{% endif %}">
-                                    <img src="{{ image_url }}" class="d-block w-100 img-fluid" alt="{{ product.name }} - Gambar {{ loop.index }}" style="max-height: 400px; object-fit: contain;">
+                                    {# Tambahkan data-bs-toggle dan data-bs-target untuk modal #}
+                                    <img src="{{ image_url }}" class="d-block w-100 img-fluid clickable-image" 
+                                        alt="{{ product.name }} - Gambar {{ loop.index }}" 
+                                        style="max-height: 400px; object-fit: contain; cursor: pointer;border: 1px solid gray;border-radius: 5px;"
+                                        data-bs-toggle="modal" data-bs-target="#imageModal" data-image-index="{{ loop.index0 }}">
                                 </div>
                             {% endfor %}
                         </div>
 
                         {# Carousel Controls (Previous/Next) #}
-                        {% if product.image_urls | length > 1 %} {# Hanya tampilkan kontrol jika ada lebih dari 1 gambar #}
+                        {% if product.image_urls | length > 1 %}
                         <button class="carousel-control-prev" type="button" data-bs-target="#productCarousel" data-bs-slide="prev">
                             <span class="carousel-control-prev-icon" aria-hidden="true"></span>
                             <span class="visually-hidden">Previous</span>
@@ -54,12 +58,12 @@
                         {% endif %}
                     </div>
                 {% else %}
-                    <img src="https://placehold.co/400x400/cccccc/333333?text=Tidak+Ada+Gambar" class="img-fluid rounded-3" alt="Tidak Ada Gambar" style="max-height: 400px; object-fit: contain;">
+                    <img src="https://placehold.co/400x400/cccccc/333333?text=Tidak+Ada+Gambar" class="img-fluid rounded-3" alt="Tidak Ada Gambar" style="max-height: 400px; object-fit: contain;border: 1px solid gray;border-radius: 5px;">
                 {% endif %}
             </div>
             <div class="col-md-7">
                 <div class="card-body d-flex flex-column h-100">
-                    <h2 class="card-title text-primary" style="font-size: 1.5rem;">{{ product.name }}</h2>
+                    <h2 class="card-title text-primary">{{ product.name }}</h2>
                     {% if product.category %}
                         <h6 class="card-subtitle mb-2 text-muted">Kategori: <span class="badge bg-info"><i class="fas fa-folder"></i> {{ product.category }}</span></h6>
                     {% endif %}
@@ -72,7 +76,7 @@
                                 <i class="fas fa-cart-plus"></i> Tambah ke Keranjang
                             </button>
                         </form>
-                        {% if is_admin_logged_in %}
+                        {% if is_admin_logged_in %} {# Hanya tampilkan jika admin login #}
                             <a href="{{ url_for('edit_product', id=product._id) }}" class="btn btn-warning rounded-pill">
                                 <i class="fas fa-edit"></i> Edit Produk
                             </a>
@@ -90,4 +94,77 @@
             </div>
         </div>
     </div>
+
+    {# Image Modal / Lightbox #}
+    <div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered"> {# Modal extra large dan terpusat #}
+            <div class="modal-content bg-transparent border-0"> {# Latar belakang transparan, tanpa border #}
+                <div class="modal-header border-0 pb-0"> {# Header modal tanpa border bawah #}
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button> {# Tombol tutup putih #}
+                </div>
+                <div class="modal-body text-center pt-0"> {# Body modal dengan padding-top 0 #}
+                    <div id="modalCarousel" class="carousel slide" data-bs-interval="false"> {# Tidak ada auto-slide #}
+                        <div class="carousel-inner">
+                            {# Gambar-gambar akan diinjeksikan oleh JavaScript #}
+                        </div>
+                        <button class="carousel-control-prev" type="button" data-bs-target="#modalCarousel" data-bs-slide="prev">
+                            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                            <span class="visually-hidden">Previous</span>
+                        </button>
+                        <button class="carousel-control-next" type="button" data-bs-target="#modalCarousel" data-bs-slide="next">
+                            <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                            <span class="visually-hidden">Next</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const imageModal = new bootstrap.Modal(document.getElementById('imageModal'));
+            const modalCarouselInner = document.querySelector('#modalCarousel .carousel-inner');
+            const productCarousel = document.getElementById('productCarousel');
+
+            // Ambil semua URL gambar produk dari data Jinja2
+            const imageUrls = [
+                {% for image_url in product.image_urls %}
+                    "{{ image_url | escapejs }}",
+                {% endfor %}
+            ];
+
+            // Inisialisasi carousel modal dengan semua gambar produk
+            function populateModalCarousel(startIndex = 0) {
+                modalCarouselInner.innerHTML = ''; // Kosongkan dulu
+                imageUrls.forEach((url, index) => {
+                    const div = document.createElement('div');
+                    div.className = `carousel-item ${index === startIndex ? 'active' : ''}`;
+                    div.innerHTML = `<img src="${url}" class="d-block w-100" style="max-height: 80vh; object-fit: contain;">`;
+                    modalCarouselInner.appendChild(div);
+                });
+
+                // Perbarui instance carousel modal setelah DOM diubah
+                const modalCarousel = bootstrap.Carousel.getInstance(document.getElementById('modalCarousel'));
+                if (modalCarousel) {
+                    modalCarousel.to(startIndex); // Atur slide aktif
+                } else {
+                    // Jika belum ada instance, buat yang baru
+                    new bootstrap.Carousel(document.getElementById('modalCarousel'), { interval: false });
+                }
+            }
+            
+            // Event listener untuk gambar di carousel utama
+            if (productCarousel) {
+                productCarousel.addEventListener('click', function(event) {
+                    const clickedImage = event.target.closest('.clickable-image');
+                    if (clickedImage) {
+                        const imageIndex = parseInt(clickedImage.dataset.imageIndex);
+                        populateModalCarousel(imageIndex); // Isi modal dengan carousel dan atur slide awal
+                        imageModal.show(); // Tampilkan modal
+                    }
+                });
+            }
+        });
+    </script>
 {% endblock %}
