@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+
+{% block title %}Manajemen Promo{% endblock %}
+
+{% block content %}
+    <h1 class="mb-4 text-center" style="font-size: 1.5rem;">Daftar Kode Promo</h1>
+    
+    {% if is_admin_logged_in %} {# Hanya tampilkan tombol Tambah jika admin login #}
+    <div class="text-end mb-4">
+        <a href="{{ url_for('add_promo') }}" class="btn btn-success rounded-pill"><i class="fas fa-plus-circle"></i> Tambah Kode Promo Baru</a>
+    </div>
+    {% endif %}
+
+    {% if promos %}
+        <div class="card shadow-sm rounded-3 p-4">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th scope="col">Kode Promo</th>
+                            <th scope="col">Tipe Diskon</th>
+                            <th scope="col">Nilai</th>
+                            <th scope="col">Kedaluwarsa</th>
+                            <th scope="col">Batas Penggunaan</th>
+                            <th scope="col">Telah Digunakan</th>
+                            {% if is_admin_logged_in %} {# Hanya tampilkan kolom Aksi jika admin login #}
+                            <th scope="col" class="text-center">Aksi</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for promo in promos %}
+                        <tr>
+                            <td><strong>{{ promo.code }}</strong></td>
+                            <td>
+                                {% if promo.discount_type == 'percentage' %}
+                                    Persentase (%)
+                                {% elif promo.discount_type == 'fixed' %}
+                                    Nominal Tetap (Rp)
+                                {% else %}
+                                    {{ promo.discount_type }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if promo.discount_type == 'percentage' %}
+                                    {{ promo.value | int }}%
+                                {% elif promo.discount_type == 'fixed' %}
+                                    Rp {{ "{:,.2f}".format(promo.value) }}
+                                {% else %}
+                                    {{ promo.value }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if promo.expiry_date %}
+                                    {{ promo.expiry_date.strftime('%Y-%m-%d') }}
+                                {% else %}
+                                    Tidak Ada
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if promo.usage_limit is not none %}
+                                    {{ promo.usage_limit }}
+                                {% else %}
+                                    Tidak Ada
+                                {% endif %}
+                            </td>
+                            <td>{{ promo.times_used | default(0) }}</td>
+                            {% if is_admin_logged_in %} {# Hanya tampilkan tombol Edit/Hapus jika admin login #}
+                            <td class="text-center">
+                                <a href="{{ url_for('edit_promo', id=promo._id) }}" class="btn btn-warning btn-sm rounded-pill me-1"><i class="fas fa-edit"></i> Edit</a>
+                                <form action="{{ url_for('delete_promo', id=promo._id) }}" method="POST" class="d-inline">
+                                    <button type="submit" class="btn btn-danger btn-sm rounded-pill" onclick="return confirm('Apakah Anda yakin ingin menghapus kode promo {{ promo.code }}?');"><i class="fas fa-trash-alt"></i> Hapus</button>
+                                </form>
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% else %}
+        <div class="alert alert-info text-center" role="alert">
+            Belum ada kode promo yang ditambahkan.
+            {% if is_admin_logged_in %}
+            <p class="mt-2"><a href="{{ url_for('add_promo') }}" class="alert-link">Tambahkan kode promo sekarang!</a></p>
+            {% else %}
+            <p class="mt-2">Silakan cek kembali nanti untuk promo menarik!</p>
+            {% endif %}
+        </div>
+    {% endif %}
+{% endblock %}

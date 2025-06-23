@@ -55,8 +55,30 @@
                     </tbody>
                     <tfoot>
                         <tr>
-                            {# Gunakan col-12 dan text-center untuk mobile, atau text-end untuk desktop #}
                             <td colspan="5" class="text-md-end text-center fw-bold fs-6 pt-3">
+                                <div class="d-flex justify-content-center justify-content-md-end align-items-baseline">
+                                    <span class="me-2">Subtotal:</span>
+                                    <span class="text-muted">Rp {{ "{:,.2f}".format(subtotal_price) }}</span>
+                                </div>
+                            </td>
+                        </tr>
+                        {% if applied_promo %}
+                        <tr>
+                            <td colspan="5" class="text-md-end text-center fw-bold fs-6">
+                                <div class="d-flex justify-content-center justify-content-md-end align-items-baseline text-success">
+                                    <span class="me-2">Diskon Promo ({{ applied_promo }}):</span>
+                                    <span class="text-success">- Rp {{ "{:,.2f}".format(discount_amount) }}</span>
+                                    <form action="{{ url_for('remove_promo') }}" method="POST" class="d-inline ms-2">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill" title="Hapus Promo">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <td colspan="5" class="text-md-end text-center fw-bold fs-6 pt-2">
                                 <div class="d-flex justify-content-center justify-content-md-end align-items-baseline">
                                     <span class="me-2">Total Keseluruhan:</span>
                                     <span class="text-primary">Rp {{ "{:,.2f}".format(total_price) }}</span>
@@ -66,6 +88,23 @@
                     </tfoot>
                 </table>
             </div>
+
+            {# Promo Code Input #}
+            <div class="mb-4 p-3 bg-light rounded-3 shadow-sm">
+                <h5 style="font-size: 1rem;">Punya Kode Promo?</h5>
+                {% if applied_promo %}
+                    <div class="alert alert-success d-flex align-items-center" role="alert">
+                        <i class="fas fa-check-circle me-2"></i>
+                        Kode promo <strong>{{ applied_promo }}</strong> berhasil diterapkan!
+                    </div>
+                {% else %}
+                    <form action="{{ url_for('apply_promo') }}" method="POST" class="d-flex">
+                        <input type="text" class="form-control me-2 rounded-pill" name="promo_code" placeholder="Masukkan kode promo Anda" aria-label="Promo Code">
+                        <button type="submit" class="btn btn-info rounded-pill">Terapkan</button>
+                    </form>
+                {% endif %}
+            </div>
+
             <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
                 <a href="{{ url_for('index') }}" class="btn btn-secondary btn-lg rounded-pill" style="font-size: 1rem;">Lanjutkan Belanja</a>
                 <button type="button" class="btn btn-success btn-lg rounded-pill" id="checkoutBtn" style="font-size: 1rem;">Checkout Via WhatsApp</button>
@@ -84,14 +123,12 @@
             if (checkoutBtn) {
                 checkoutBtn.addEventListener('click', function() {
                     let message = "Halo, saya ingin memesan produk berikut:\n\n";
-                    let totalHarga = 0;
 
                     const cartItems = [
                         {% for item in cart_items %}
                             {
                                 name: "{{ item.name | escapejs }}",
                                 quantity: {{ item.quantity }},
-                                price: {{ item.price }},
                                 subtotal: {{ item.subtotal }}
                             },
                         {% endfor %}
@@ -99,10 +136,13 @@
 
                     cartItems.forEach(item => {
                         message += `- ${item.name} (x${item.quantity}) - Rp ${item.subtotal.toLocaleString('id-ID')}\n`;
-                        totalHarga += item.subtotal;
                     });
 
-                    message += `\nTotal Harga: Rp ${totalHarga.toLocaleString('id-ID')}\n`;
+                    {% if applied_promo %}
+                        message += `\nDiskon Promo ({{ applied_promo }}): - Rp {{ "{:,.2f}".format(discount_amount) }}`;
+                    {% endif %}
+                    
+                    message += `\n\nTotal Keseluruhan: Rp {{ "{:,.2f}".format(total_price) }}\n`;
                     message += "\nMohon konfirmasi pesanan saya. Terima kasih!";
 
                     const encodedMessage = encodeURIComponent(message);
@@ -111,7 +151,12 @@
 
                     const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodedMessage}`;
                     
+                    // Buka tab WhatsApp
                     window.open(whatsappUrl, '_blank');
+
+                    // Arahkan browser ke rute checkout_success di server Flask
+                    // Ini akan mengosongkan keranjang di sesi Flask setelah pengguna potensial melihat pesan WhatsApp.
+                    window.location.href = "{{ url_for('checkout_success') }}"; 
                 });
             }
         });

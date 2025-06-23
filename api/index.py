@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 import re
 from werkzeug.security import generate_password_hash, check_password_hash
 from math import ceil
+from datetime import datetime
 
 # Muat variabel lingkungan dari file .env
 load_dotenv()
@@ -38,6 +39,7 @@ client = MongoClient(MONGO_URI)
 db = client['ecommerce_db']
 products_collection = db['products']
 users_collection = db['users']
+promos_collection = db['promos']
 
 # Konfigurasi Imgur API
 IMGUR_CLIENT_ID = os.getenv('IMGUR_CLIENT_ID')
@@ -47,7 +49,7 @@ IMGUR_UPLOAD_URL = "https://api.imgur.com/3/image"
 
 
 # Konstanta Paginasi
-PER_PAGE = 3 # Jumlah produk per halaman
+PER_PAGE = 3
 
 # Fungsi untuk mengunggah satu gambar ke Imgur
 def upload_single_image_to_imgur(image_file_stream):
@@ -111,10 +113,13 @@ def initialize_session_variables():
         session['is_admin'] = False
     if 'is_customer' not in session:
         session['is_customer'] = False
+    if 'applied_promo' not in session:
+        session['applied_promo'] = None
 
     app.jinja_env.globals['current_logged_in_user'] = session.get('username')
     app.jinja_env.globals['is_admin_logged_in'] = session.get('is_admin')
     app.jinja_env.globals['is_customer_logged_in'] = session.get('is_customer')
+    app.jinja_env.globals['applied_promo'] = session.get('applied_promo')
 
 # Dekorator untuk memeriksa login admin
 def admin_required(f):
@@ -126,7 +131,7 @@ def admin_required(f):
     wrap.__name__ = f.__name__
     return wrap
 
-# Dekorator untuk memeriksa login customer atau admin
+# Dekorator untuk memeriksa login customer atau admin (any logged in user)
 def login_required(f):
     def wrap(*args, **kwargs):
         if not session.get('user_id'):
@@ -191,7 +196,7 @@ def add_product():
         price = float(request.form['price'])
         category = request.form['category'].strip() 
         
-        image_files = request.files.getlist('images') # Menggunakan 'images' (plural)
+        image_files = request.files.getlist('images')
         uploaded_image_urls = []
 
         for img_file in image_files:
@@ -200,7 +205,6 @@ def add_product():
                 if image_url:
                     uploaded_image_urls.append(image_url)
         
-        # Jika tidak ada gambar yang diunggah dan tidak ada gambar yang berhasil diunggah
         if not uploaded_image_urls and any(f.filename for f in image_files):
             flash('Gagal mengunggah beberapa atau semua gambar.', 'danger')
             return render_template('add_product.html')
@@ -210,7 +214,7 @@ def add_product():
             'description': description,
             'price': price,
             'category': category,
-            'image_urls': uploaded_image_urls # Menyimpan sebagai array
+            'image_urls': uploaded_image_urls
         }
         products_collection.insert_one(product_data)
         flash('Produk berhasil ditambahkan!', 'success')
@@ -222,11 +226,10 @@ def product_detail(id):
     """Menampilkan detail satu produk."""
     product = products_collection.find_one({'_id': ObjectId(id)})
     if product:
-        # Untuk kompatibilitas mundur dengan produk lama yang mungkin hanya punya 'image_url' (string)
         if 'image_url' in product and not isinstance(product.get('image_urls'), list):
             product['image_urls'] = [product['image_url']]
         elif 'image_urls' not in product:
-            product['image_urls'] = [] # Pastikan selalu ada list kosong
+            product['image_urls'] = []
         return render_template('product_detail.html', product=product)
     flash('Produk tidak ditemukan.', 'danger')
     return redirect(url_for('index'))
@@ -240,7 +243,6 @@ def edit_product(id):
         flash('Produk tidak ditemukan.', 'danger')
         return redirect(url_for('index'))
 
-    # Untuk kompatibilitas mundur: pastikan image_urls adalah list
     if 'image_url' in product and not isinstance(product.get('image_urls'), list):
         current_image_urls = [product['image_url']]
     else:
@@ -252,13 +254,9 @@ def edit_product(id):
         price = float(request.form['price'])
         category = request.form['category'].strip() 
         
-        # Dapatkan daftar URL gambar yang akan dipertahankan dari formulir
-        # Jika tidak ada yang dikirim (misal, semua dihapus), ini akan menjadi string kosong,
-        # jadi kita pecah berdasarkan koma dan filter string kosong.
         kept_image_urls_str = request.form.get('kept_image_urls', '')
         kept_image_urls = [url.strip() for url in kept_image_urls_str.split(',') if url.strip()]
 
-        # Tangani file gambar baru yang diunggah
         new_image_files = request.files.getlist('new_images')
         uploaded_new_image_urls = []
 
@@ -268,13 +266,10 @@ def edit_product(id):
                 if image_url:
                     uploaded_new_image_urls.append(image_url)
 
-        # Gabungkan gambar yang dipertahankan dengan gambar yang baru diunggah
         final_image_urls = kept_image_urls + uploaded_new_image_urls
         
-        # Validasi: Jika tidak ada gambar sama sekali setelah edit/hapus
         if not final_image_urls:
             flash('Produk harus memiliki setidaknya satu gambar. Tidak ada gambar yang disimpan.', 'danger')
-            # Kembali ke halaman edit, tampilkan gambar yang awalnya ada
             product['image_urls'] = current_image_urls
             return render_template('edit_product.html', product=product)
 
@@ -285,13 +280,13 @@ def edit_product(id):
                 'description': description,
                 'price': price,
                 'category': category,
-                'image_urls': final_image_urls # Simpan sebagai array
+                'image_urls': final_image_urls
             }}
         )
         flash('Produk berhasil diperbarui!', 'success')
         return redirect(url_for('product_detail', id=id))
 
-    product['image_urls'] = current_image_urls # Pastikan product object yang dikirim ke template juga punya list
+    product['image_urls'] = current_image_urls
     return render_template('edit_product.html', product=product)
 
 @app.route('/delete_product/<id>', methods=['POST'])
@@ -317,7 +312,6 @@ def add_to_cart(product_id):
         if product_id in session['cart']:
             session['cart'][product_id]['quantity'] += 1
         else:
-            # Di keranjang, kita hanya menyimpan gambar pertama untuk tampilan
             first_image_url = product.get('image_urls', [None])[0] 
             session['cart'][product_id] = {
                 'name': product['name'],
@@ -357,11 +351,11 @@ def clear_item_from_cart(product_id):
     return redirect(url_for('view_cart'))
 
 
-@app.route('/cart')
+@app.route('/cart', methods=['GET'])
 def view_cart():
     """Menampilkan isi keranjang belanja."""
     cart_items = []
-    total_price = 0
+    subtotal_price = 0
     for product_id, item_data in session['cart'].items():
         cart_items.append({
             'id': product_id,
@@ -371,8 +365,98 @@ def view_cart():
             'image_url': item_data.get('image_url'),
             'subtotal': item_data['price'] * item_data['quantity']
         })
-        total_price += item_data['price'] * item_data['quantity']
-    return render_template('cart.html', cart_items=cart_items, total_price=total_price)
+        subtotal_price += item_data['price'] * item_data['quantity']
+    
+    total_price_after_discount = subtotal_price
+    discount_amount = 0
+    applied_promo_code = session.get('applied_promo')
+    promo_details = None
+
+    if applied_promo_code:
+        promo = promos_collection.find_one({'code': applied_promo_code})
+        if promo:
+            if 'expiry_date' in promo and promo['expiry_date'] < datetime.now():
+                flash(f'Kode promo "{applied_promo_code}" sudah kedaluwarsa.', 'warning')
+                session.pop('applied_promo', None)
+            elif 'usage_limit' in promo and promo.get('times_used', 0) >= promo['usage_limit']:
+                flash(f'Kode promo "{applied_promo_code}" telah mencapai batas penggunaan.', 'warning')
+                session.pop('applied_promo', None)
+            else:
+                promo_details = promo
+                if promo['discount_type'] == 'percentage':
+                    discount_amount = subtotal_price * (promo['value'] / 100)
+                    total_price_after_discount = subtotal_price - discount_amount
+                elif promo['discount_type'] == 'fixed':
+                    discount_amount = promo['value']
+                    total_price_after_discount = max(0, subtotal_price - discount_amount)
+        else:
+            flash(f'Kode promo "{applied_promo_code}" tidak valid.', 'warning')
+            session.pop('applied_promo', None)
+        session.modified = True
+
+
+    return render_template('cart.html', 
+                           cart_items=cart_items, 
+                           subtotal_price=subtotal_price,
+                           total_price=total_price_after_discount,
+                           discount_amount=discount_amount,
+                           applied_promo=applied_promo_code,
+                           promo_details=promo_details
+                           )
+
+@app.route('/apply_promo', methods=['POST'])
+def apply_promo():
+    promo_code = request.form.get('promo_code', '').strip().upper()
+    
+    if not promo_code:
+        flash('Silakan masukkan kode promo.', 'warning')
+        return redirect(url_for('view_cart'))
+
+    promo = promos_collection.find_one({'code': promo_code})
+
+    if not promo:
+        flash(f'Kode promo "{promo_code}" tidak valid.', 'danger')
+    else:
+        if 'expiry_date' in promo and promo['expiry_date'] < datetime.now():
+            flash(f'Kode promo "{promo_code}" sudah kedaluwarsa.', 'warning')
+        elif 'usage_limit' in promo and promo.get('times_used', 0) >= promo['usage_limit']:
+            flash(f'Kode promo "{promo_code}" telah mencapai batas penggunaan.', 'warning')
+        else:
+            session['applied_promo'] = promo_code
+            session.modified = True
+            flash(f'Kode promo "{promo_code}" berhasil diterapkan!', 'success')
+
+    return redirect(url_for('view_cart'))
+
+@app.route('/remove_promo', methods=['POST'])
+def remove_promo():
+    # Ini adalah rute yang dicari!
+    if 'applied_promo' in session:
+        flash(f'Kode promo "{session["applied_promo"]}" telah dihapus.', 'info')
+        session.pop('applied_promo', None)
+        session.modified = True
+    return redirect(url_for('view_cart'))
+
+
+# Rute baru untuk menyelesaikan checkout dan mengosongkan keranjang
+@app.route('/checkout_success', methods=['GET'])
+@login_required
+def checkout_success():
+    if session.get('applied_promo'):
+        promo_code = session['applied_promo']
+        promo = promos_collection.find_one({'code': promo_code})
+        if promo:
+            if ('expiry_date' not in promo or promo['expiry_date'] >= datetime.now()) and \
+               ('usage_limit' not in promo or promo.get('times_used', 0) < promo['usage_limit']):
+                promos_collection.update_one({'_id': promo['_id']}, {'$inc': {'times_used': 1}})
+                print(f"Promo code {promo_code} usage incremented.")
+
+    session.pop('cart', None)
+    session.pop('applied_promo', None)
+    session.modified = True
+    flash('Pesanan Anda telah berhasil diproses! Keranjang belanja Anda telah dikosongkan.', 'success')
+    return redirect(url_for('index'))
+
 
 @app.context_processor
 def inject_cart_count():
@@ -442,6 +526,7 @@ def logout():
     session.pop('username', None)
     session.pop('is_admin', None)
     session.pop('is_customer', None)
+    session.pop('applied_promo', None)
     flash('Anda telah berhasil logout.', 'info')
     return redirect(url_for('index'))
 
@@ -474,3 +559,119 @@ def create_first_admin():
         return redirect(url_for('login'))
     return render_template('create_first_admin.html')
 
+# ---- Rute Manajemen Promo ----
+
+@app.route('/promos')
+@login_required
+def list_promos():
+    """Menampilkan daftar semua kode promo."""
+    promos = list(promos_collection.find({}).sort('code', 1))
+    return render_template('promos.html', promos=promos)
+
+@app.route('/add_promo', methods=['GET', 'POST'])
+@admin_required
+def add_promo():
+    """Menambahkan kode promo baru."""
+    if request.method == 'POST':
+        code = request.form['code'].strip().upper()
+        discount_type = request.form['discount_type']
+        value = float(request.form['value'])
+        expiry_date_str = request.form.get('expiry_date')
+        usage_limit = request.form.get('usage_limit', type=int)
+
+        if not code or not discount_type or value is None:
+            flash('Kode, tipe diskon, dan nilai tidak boleh kosong.', 'danger')
+            return render_template('add_promo.html')
+        
+        if promos_collection.find_one({'code': code}):
+            flash('Kode promo sudah ada. Gunakan kode lain.', 'warning')
+            return render_template('add_promo.html')
+        
+        promo_data = {
+            'code': code,
+            'discount_type': discount_type,
+            'value': value,
+            'times_used': 0
+        }
+        if expiry_date_str:
+            try:
+                promo_data['expiry_date'] = datetime.strptime(expiry_date_str, '%Y-%m-%d')
+            except ValueError:
+                flash('Format tanggal kedaluwarsa tidak valid. GunakanYYYY-MM-DD.', 'danger')
+                return render_template('add_promo.html')
+        
+        if usage_limit is not None and usage_limit >= 0:
+            promo_data['usage_limit'] = usage_limit
+
+        promos_collection.insert_one(promo_data)
+        flash('Kode promo berhasil ditambahkan!', 'success')
+        return redirect(url_for('list_promos'))
+    return render_template('add_promo.html')
+
+@app.route('/edit_promo/<id>', methods=['GET', 'POST'])
+@admin_required
+def edit_promo(id):
+    """Mengedit kode promo yang sudah ada."""
+    promo = promos_collection.find_one({'_id': ObjectId(id)})
+    if not promo:
+        flash('Kode promo tidak ditemukan.', 'danger')
+        return redirect(url_for('list_promos'))
+
+    if request.method == 'POST':
+        code = request.form['code'].strip().upper()
+        discount_type = request.form['discount_type']
+        value = float(request.form['value'])
+        expiry_date_str = request.form.get('expiry_date')
+        usage_limit = request.form.get('usage_limit', type=int)
+
+        if not code or not discount_type or value is None:
+            flash('Kode, tipe diskon, dan nilai tidak boleh kosong.', 'danger')
+            return render_template('edit_promo.html', promo=promo)
+        
+        if promos_collection.find_one({'code': code, '_id': {'$ne': ObjectId(id)}}):
+            flash('Kode promo sudah ada. Gunakan kode lain.', 'warning')
+            return render_template('edit_promo.html', promo=promo)
+
+        update_data = {
+            'code': code,
+            'discount_type': discount_type,
+            'value': value
+        }
+        if expiry_date_str:
+            try:
+                update_data['expiry_date'] = datetime.strptime(expiry_date_str, '%Y-%m-%d')
+            except ValueError:
+                flash('Format tanggal kedaluwarsa tidak valid. GunakanYYYY-MM-DD.', 'danger')
+                return render_template('edit_promo.html', promo=promo)
+        else:
+            update_data['expiry_date'] = None
+
+        if usage_limit is not None and usage_limit >= 0:
+            update_data['usage_limit'] = usage_limit
+        else:
+            update_data['usage_limit'] = None
+
+        promos_collection.update_one(
+            {'_id': ObjectId(id)},
+            {'$set': update_data}
+        )
+        flash('Kode promo berhasil diperbarui!', 'success')
+        return redirect(url_for('list_promos'))
+    
+    if 'expiry_date' in promo and promo['expiry_date']:
+        promo['expiry_date_str'] = promo['expiry_date'].strftime('%Y-%m-%d')
+    else:
+        promo['expiry_date_str'] = ''
+
+    return render_template('edit_promo.html', promo=promo)
+
+@app.route('/delete_promo/<id>', methods=['POST'])
+@admin_required
+def delete_promo(id):
+    """Menghapus kode promo."""
+    result = promos_collection.delete_one({'_id': ObjectId(id)})
+    if result.deleted_count > 0:
+        flash('Kode promo berhasil dihapus!', 'success')
+    else:
+        flash('Kode promo tidak ditemukan.', 'danger')
+    return redirect(url_for('list_promos'))

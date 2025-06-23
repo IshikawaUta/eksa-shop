@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block title %}Tambah Kode Promo{% endblock %}
+
+{% block content %}
+    <h1 class="mb-4 text-center" style="font-size: 1.5rem;">Tambah Kode Promo Baru</h1>
+    <div class="card shadow-sm rounded-3 mx-auto" style="max-width: 600px;">
+        <div class="card-body p-4">
+            <form method="POST" action="{{ url_for('add_promo') }}">
+                <div class="mb-3">
+                    <label for="code" class="form-label">Kode Promo (contoh: DISKON10)</label>
+                    <input type="text" class="form-control rounded-pill" id="code" name="code" required style="text-transform: uppercase;">
+                    <small class="form-text text-muted">Kode akan diubah menjadi huruf kapital secara otomatis.</small>
+                </div>
+                <div class="mb-3">
+                    <label for="discount_type" class="form-label">Tipe Diskon</label>
+                    <select class="form-select rounded-pill" id="discount_type" name="discount_type" required>
+                        <option value="percentage">Persentase (%)</option>
+                        <option value="fixed">Nominal Tetap (Rp)</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="value" class="form-label">Nilai Diskon</label>
+                    <input type="number" class="form-control rounded-pill" id="value" name="value" step="0.01" required>
+                    <small class="form-text text-muted">Contoh: 10 untuk 10% atau 50000 untuk Rp 50.000</small>
+                </div>
+                <div class="mb-3">
+                    <label for="expiry_date" class="form-label">Tanggal Kedaluwarsa (Opsional)</label>
+                    <input type="date" class="form-control rounded-pill" id="expiry_date" name="expiry_date">
+                    <small class="form-text text-muted">Kosongkan jika tidak ada kedaluwarsa.</small>
+                </div>
+                <div class="mb-3">
+                    <label for="usage_limit" class="form-label">Batas Penggunaan (Opsional)</label>
+                    <input type="number" class="form-control rounded-pill" id="usage_limit" name="usage_limit" min="0" placeholder="Contoh: 100">
+                    <small class="form-text text-muted">Jumlah total berapa kali kode promo ini bisa digunakan. Kosongkan jika tidak ada batas.</small>
+                </div>
+                <div class="d-grid gap-2 mt-4">
+                    <button type="submit" class="btn btn-primary btn-lg rounded-pill">Tambah Promo</button>
+                    <a href="{{ url_for('list_promos') }}" class="btn btn-outline-secondary btn-lg rounded-pill">Batal</a>
+                </div>
+            </form>
+        </div>
+    </div>
+{% endblock %}
