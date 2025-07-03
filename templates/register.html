@@ -26,6 +26,7 @@
             </div>
 
             {# Google Sign-In Button #}
+            <div class="d-flex justify-content-center"></div>
             <div class="d-grid gap-2">
                 <div id="g_id_onload"
                      data-client_id="{{ GOOGLE_CLIENT_ID }}"
@@ -39,9 +40,9 @@
                      data-theme="outline"
                      data-text="signup_with" {# Ubah teks untuk register #}
                      data-shape="pill"
-                     data-logo_alignment="left"
-                     data-width="300"> {# Sesuaikan lebar agar pas #}
+                     data-logo_alignment="left"> {# Sesuaikan lebar agar pas #}
                 </div>
+            </div>
             </div>
 
             <div class="text-center mt-3">
@@ -49,6 +50,20 @@
             </div>
         </div>
     </div>
+
+    <style>
+        /* CSS kustom untuk responsivitas tombol Google Sign-In */
+        .g_id_signin > div { /* Target div internal yang dibuat oleh Google */
+            max-width: 100% !important; /* Pastikan tidak melebihi lebar parent */
+            width: auto !important; /* Biarkan lebar menyesuaikan konten */
+        }
+        /* Jika tombol masih terlalu lebar di mobile, Anda bisa menambahkan max-width yang lebih kecil */
+        @media (max-width: 576px) { /* Untuk layar sangat kecil */
+            .g_id_signin > div {
+                max-width: 300px !important; /* Contoh: batasi hingga 280px */
+            }
+        }
+    </style>
 
     <script>
         // Fungsi callback yang akan dipanggil setelah Google Sign-In berhasil
