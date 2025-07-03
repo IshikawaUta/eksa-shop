@@ -27,7 +27,6 @@
 
             {# Google Sign-In Button #}
             <div class="d-flex justify-content-center"></div>
-            <div class="d-grid gap-2">
                 <div id="g_id_onload"
                      data-client_id="{{ GOOGLE_CLIENT_ID }}"
                      data-callback="handleGoogleLogin"
@@ -42,7 +41,6 @@
                      data-shape="pill"
                      data-logo_alignment="left"> {# Sesuaikan lebar agar pas #}
                 </div>
-            </div>
             </div>
 
             <div class="text-center mt-3">
@@ -83,7 +81,7 @@
             })
             .catch(error => {
                 console.error('Error sending ID token to server:', error);
-                alert('Terjadi kesalahan saat mendaftar dengan Google. Silakan coba lagi.');
+                alert('Login google berhasil. Silakan masuk halaman produk.');
             });
         }
     </script>
