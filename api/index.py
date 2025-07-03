@@ -14,8 +14,8 @@ from datetime import datetime
 
 # Impor untuk Google OAuth
 from google.oauth2 import id_token
-from google.auth.transport import requests as google_requests # Hindari konflik nama dengan requests
-import json # Untuk memparsing respons dari Google API
+from google.auth.transport import requests as google_requests
+import json
 
 # Muat variabel lingkungan dari file .env
 load_dotenv()
@@ -56,11 +56,15 @@ IMGUR_UPLOAD_URL = "https://api.imgur.com/3/image"
 GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
 GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
 
+# Debugging: Cetak nilai GOOGLE_CLIENT_ID dari .env
+print(f"Debug: GOOGLE_CLIENT_ID from .env: {GOOGLE_CLIENT_ID}")
+print(f"Debug: GOOGLE_CLIENT_SECRET from .env: {GOOGLE_CLIENT_SECRET}")
+
 if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
     print("Warning: GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not set. Google Sign-In will not work.")
 
 # Konstanta Paginasi
-PER_PAGE = 6
+PER_PAGE = 9
 
 # Fungsi untuk mengunggah satu gambar ke Imgur
 def upload_single_image_to_imgur(image_file_stream):
@@ -151,6 +155,18 @@ def login_required(f):
         return f(*args, **kwargs)
     wrap.__name__ = f.__name__
     return wrap
+
+# Context processor untuk menyuntikkan GOOGLE_CLIENT_ID ke semua template
+@app.context_processor
+def inject_google_client_id():
+    return dict(GOOGLE_CLIENT_ID=GOOGLE_CLIENT_ID)
+
+@app.context_processor
+def inject_cart_count():
+    """Menyuntikkan jumlah item di keranjang ke semua template."""
+    cart_count = sum(item['quantity'] for item in session.get('cart', {}).values())
+    return dict(cart_count=cart_count)
+
 
 @app.route('/')
 def index():
@@ -468,12 +484,6 @@ def checkout_success():
     return redirect(url_for('index'))
 
 
-@app.context_processor
-def inject_cart_count():
-    """Menyuntikkan jumlah item di keranjang ke semua template."""
-    cart_count = sum(item['quantity'] for item in session.get('cart', {}).values())
-    return dict(cart_count=cart_count)
-
 # ---- Rute Autentikasi Admin & Pelanggan ----
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -708,9 +718,9 @@ def google_callback():
         idinfo = id_token.verify_oauth2_token(credential, google_requests.Request(), GOOGLE_CLIENT_ID)
 
         # Dapatkan informasi pengguna dari token
-        google_user_id = idinfo['sub'] # 'sub' adalah unique user ID dari Google
+        google_user_id = idinfo['sub']
         email = idinfo['email']
-        name = idinfo.get('name', email) # Gunakan nama jika tersedia, jika tidak gunakan email
+        name = idinfo.get('name', email)
 
         # Cari pengguna berdasarkan google_id
         user = users_collection.find_one({'google_id': google_user_id})
@@ -718,24 +728,23 @@ def google_callback():
         if not user:
             # Jika pengguna belum terdaftar dengan Google ID ini
             # Cek apakah ada pengguna dengan email yang sama (mungkin daftar manual sebelumnya)
-            existing_user_by_email = users_collection.find_one({'username': email}) # Asumsi username adalah email
+            existing_user_by_email = users_collection.find_one({'username': email})
 
             if existing_user_by_email:
                 # Jika ada pengguna dengan email yang sama, perbarui akun mereka dengan google_id
                 users_collection.update_one(
                     {'_id': existing_user_by_email['_id']},
-                    {'$set': {'google_id': google_user_id, 'name': name}} # Tambahkan nama juga
+                    {'$set': {'google_id': google_user_id, 'name': name}}
                 )
                 user = users_collection.find_one({'_id': existing_user_by_email['_id']})
                 flash(f'Akun Anda ({email}) berhasil dihubungkan dengan Google.', 'success')
             else:
                 # Daftarkan pengguna baru
                 user_data = {
-                    'username': email, # Gunakan email sebagai username
+                    'username': email,
                     'name': name,
                     'google_id': google_user_id,
-                    'role': 'customer' # Default role
-                    # Tidak perlu password karena login via Google
+                    'role': 'customer'
                 }
                 users_collection.insert_one(user_data)
                 user = users_collection.find_one({'google_id': google_user_id})
@@ -743,7 +752,7 @@ def google_callback():
         
         # Set sesi untuk pengguna yang login
         session['user_id'] = str(user['_id'])
-        session['username'] = user['username'] # Atau user['name'] jika Anda ingin menampilkan nama asli
+        session['username'] = user['username']
         session['is_admin'] = (user.get('role') == 'admin')
         session['is_customer'] = (user.get('role') == 'customer')
         session.modified = True
