@@ -8,7 +8,7 @@
         <div class="card-body p-4">
             <form method="POST" action="{{ url_for('login') }}">
                 <div class="mb-3">
-                    <label for="username" class="form-label">Nama Pengguna</label>
+                    <label for="username" class="form-label">Nama Pengguna / Email</label>
                     <input type="text" class="form-control rounded-pill" id="username" name="username" required>
                 </div>
                 <div class="mb-3">
@@ -16,15 +16,66 @@
                     <input type="password" class="form-control rounded-pill" id="password" name="password" required>
                 </div>
                 <div class="d-grid gap-2 mt-4">
-                    <button type="submit" class="btn btn-primary btn-lg rounded-pill" style="font-size: 1rem;">Login</button>
-                    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-lg rounded-pill" style="font-size: 1rem;">Batal</a>
+                    <button type="submit" class="btn btn-primary btn-lg rounded-pill">Login</button>
                 </div>
             </form>
-            <hr class="my-4">
-            <p class="text-center text-muted mb-2">Belum punya akun? <a href="{{ url_for('register') }}">Daftar di sini.</a></p>
-            <!-- <p class="text-center text-muted">
-                Untuk admin pertama, silakan <a href="{{ url_for('create_first_admin') }}">buat akun admin di sini.</a>
-            </p> -->
+
+            <div class="text-center my-3">
+                <hr>
+                <p class="text-muted">Atau login dengan</p>
+            </div>
+
+            {# Google Sign-In Button #}
+            <div class="d-grid gap-2">
+                <div id="g_id_onload"
+                     data-client_id="{{ GOOGLE_CLIENT_ID }}"
+                     data-callback="handleGoogleLogin"
+                     data-auto_prompt="false"
+                     data-auto_select="true">
+                </div>
+                <div class="g_id_signin"
+                     data-type="standard"
+                     data-size="large"
+                     data-theme="outline"
+                     data-text="sign_in_with"
+                     data-shape="pill"
+                     data-logo_alignment="left"
+                     data-width="360"> {# Sesuaikan lebar agar pas #}
+                </div>
+            </div>
+
+            <div class="text-center mt-3">
+                Belum punya akun? <a href="{{ url_for('register') }}">Daftar di sini</a>
+            </div>
         </div>
     </div>
+
+    <script>
+        // Fungsi callback yang akan dipanggil setelah Google Sign-In berhasil
+        function handleGoogleLogin(response) {
+            // response.credential adalah ID token yang perlu kita kirim ke server
+            const idToken = response.credential;
+
+            // Kirim ID token ke server Flask Anda
+            fetch('{{ url_for("google_callback") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `credential=${idToken}`
+            })
+            .then(response => response.json()) // Asumsi server mengembalikan JSON (misal: redirect URL)
+            .then(data => {
+                // Flask akan mengalihkan browser, jadi kita tidak perlu mengalihkan di sini
+                // Jika Flask mengembalikan JSON dengan URL redirect, kita bisa menggunakannya
+                // window.location.href = data.redirect_url; // Contoh jika Flask mengembalikan JSON
+                // Karena Flask melakukan redirect 302, browser akan otomatis mengikutinya.
+                console.log("Google Sign-In callback processed by server.");
+            })
+            .catch(error => {
+                console.error('Error sending ID token to server:', error);
+                alert('Terjadi kesalahan saat login dengan Google. Silakan coba lagi.');
+            });
+        }
+    </script>
 {% endblock %}

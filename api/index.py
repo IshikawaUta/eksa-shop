@@ -12,6 +12,11 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from math import ceil
 from datetime import datetime
 
+# Impor untuk Google OAuth
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests # Hindari konflik nama dengan requests
+import json # Untuk memparsing respons dari Google API
+
 # Muat variabel lingkungan dari file .env
 load_dotenv()
 
@@ -47,9 +52,15 @@ if not IMGUR_CLIENT_ID:
     print("Warning: IMGUR_CLIENT_ID not set. Imgur upload will not work.")
 IMGUR_UPLOAD_URL = "https://api.imgur.com/3/image"
 
+# Konfigurasi Google OAuth
+GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
+GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
+
+if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+    print("Warning: GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not set. Google Sign-In will not work.")
 
 # Konstanta Paginasi
-PER_PAGE = 3
+PER_PAGE = 6
 
 # Fungsi untuk mengunggah satu gambar ke Imgur
 def upload_single_image_to_imgur(image_file_stream):
@@ -430,7 +441,6 @@ def apply_promo():
 
 @app.route('/remove_promo', methods=['POST'])
 def remove_promo():
-    # Ini adalah rute yang dicari!
     if 'applied_promo' in session:
         flash(f'Kode promo "{session["applied_promo"]}" telah dihapus.', 'info')
         session.pop('applied_promo', None)
@@ -675,3 +685,77 @@ def delete_promo(id):
     else:
         flash('Kode promo tidak ditemukan.', 'danger')
     return redirect(url_for('list_promos'))
+
+# ---- Google Sign-In Routes ----
+
+@app.route('/google_callback', methods=['POST'])
+def google_callback():
+    """
+    Menangani callback dari Google Sign-In.
+    Menerima ID token, memverifikasinya, dan mengautentikasi/mendaftar pengguna.
+    """
+    if not GOOGLE_CLIENT_ID:
+        flash("Google Client ID tidak diatur.", 'danger')
+        return redirect(url_for('login'))
+
+    try:
+        # ID token dikirim sebagai bagian dari payload POST
+        credential = request.form.get('credential')
+        if not credential:
+            raise ValueError("Credential (ID token) tidak ditemukan.")
+
+        # Verifikasi ID token
+        idinfo = id_token.verify_oauth2_token(credential, google_requests.Request(), GOOGLE_CLIENT_ID)
+
+        # Dapatkan informasi pengguna dari token
+        google_user_id = idinfo['sub'] # 'sub' adalah unique user ID dari Google
+        email = idinfo['email']
+        name = idinfo.get('name', email) # Gunakan nama jika tersedia, jika tidak gunakan email
+
+        # Cari pengguna berdasarkan google_id
+        user = users_collection.find_one({'google_id': google_user_id})
+
+        if not user:
+            # Jika pengguna belum terdaftar dengan Google ID ini
+            # Cek apakah ada pengguna dengan email yang sama (mungkin daftar manual sebelumnya)
+            existing_user_by_email = users_collection.find_one({'username': email}) # Asumsi username adalah email
+
+            if existing_user_by_email:
+                # Jika ada pengguna dengan email yang sama, perbarui akun mereka dengan google_id
+                users_collection.update_one(
+                    {'_id': existing_user_by_email['_id']},
+                    {'$set': {'google_id': google_user_id, 'name': name}} # Tambahkan nama juga
+                )
+                user = users_collection.find_one({'_id': existing_user_by_email['_id']})
+                flash(f'Akun Anda ({email}) berhasil dihubungkan dengan Google.', 'success')
+            else:
+                # Daftarkan pengguna baru
+                user_data = {
+                    'username': email, # Gunakan email sebagai username
+                    'name': name,
+                    'google_id': google_user_id,
+                    'role': 'customer' # Default role
+                    # Tidak perlu password karena login via Google
+                }
+                users_collection.insert_one(user_data)
+                user = users_collection.find_one({'google_id': google_user_id})
+                flash(f'Selamat datang, {name}! Akun Anda berhasil dibuat dengan Google.', 'success')
+        
+        # Set sesi untuk pengguna yang login
+        session['user_id'] = str(user['_id'])
+        session['username'] = user['username'] # Atau user['name'] jika Anda ingin menampilkan nama asli
+        session['is_admin'] = (user.get('role') == 'admin')
+        session['is_customer'] = (user.get('role') == 'customer')
+        session.modified = True
+
+        return redirect(url_for('index'))
+
+    except ValueError as e:
+        flash(f"Kesalahan verifikasi Google Sign-In: {e}", 'danger')
+        print(f"Google Sign-In Error: {e}")
+        return redirect(url_for('login'))
+    except Exception as e:
+        flash(f"Terjadi kesalahan saat login dengan Google: {e}", 'danger')
+        print(f"Unexpected Google Sign-In Error: {e}")
+        return redirect(url_for('login'))
+

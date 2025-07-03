@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Daftar Akun{% endblock %}
+{% block title %}Daftar Akun Baru{% endblock %}
 
 {% block content %}
     <h1 class="mb-4 text-center" style="font-size: 1.5rem;">Daftar Akun Baru</h1>
@@ -8,7 +8,7 @@
         <div class="card-body p-4">
             <form method="POST" action="{{ url_for('register') }}">
                 <div class="mb-3">
-                    <label for="username" class="form-label">Nama Pengguna</label>
+                    <label for="username" class="form-label">Nama Pengguna / Email</label>
                     <input type="text" class="form-control rounded-pill" id="username" name="username" required>
                 </div>
                 <div class="mb-3">
@@ -16,10 +16,60 @@
                     <input type="password" class="form-control rounded-pill" id="password" name="password" required>
                 </div>
                 <div class="d-grid gap-2 mt-4">
-                    <button type="submit" class="btn btn-primary btn-lg rounded-pill" style="font-size: 1rem;">Daftar</button>
-                    <a href="{{ url_for('login') }}" class="btn btn-outline-secondary btn-lg rounded-pill" style="font-size: 1rem;">Sudah punya akun? Login</a>
+                    <button type="submit" class="btn btn-primary btn-lg rounded-pill">Daftar</button>
                 </div>
             </form>
+
+            <div class="text-center my-3">
+                <hr>
+                <p class="text-muted">Atau daftar dengan</p>
+            </div>
+
+            {# Google Sign-In Button #}
+            <div class="d-grid gap-2">
+                <div id="g_id_onload"
+                     data-client_id="{{ GOOGLE_CLIENT_ID }}"
+                     data-callback="handleGoogleLogin"
+                     data-auto_prompt="false"
+                     data-auto_select="true">
+                </div>
+                <div class="g_id_signin"
+                     data-type="standard"
+                     data-size="large"
+                     data-theme="outline"
+                     data-text="signup_with" {# Ubah teks untuk register #}
+                     data-shape="pill"
+                     data-logo_alignment="left"
+                     data-width="360"> {# Sesuaikan lebar agar pas #}
+                </div>
+            </div>
+
+            <div class="text-center mt-3">
+                Sudah punya akun? <a href="{{ url_for('login') }}">Login di sini</a>
+            </div>
         </div>
     </div>
+
+    <script>
+        // Fungsi callback yang akan dipanggil setelah Google Sign-In berhasil
+        function handleGoogleLogin(response) {
+            const idToken = response.credential;
+
+            fetch('{{ url_for("google_callback") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `credential=${idToken}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log("Google Sign-In callback processed by server.");
+            })
+            .catch(error => {
+                console.error('Error sending ID token to server:', error);
+                alert('Terjadi kesalahan saat mendaftar dengan Google. Silakan coba lagi.');
+            });
+        }
+    </script>
 {% endblock %}
