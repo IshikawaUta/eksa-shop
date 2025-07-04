@@ -17,6 +17,12 @@ from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 import json
 
+# Impor untuk reset password
+from flask_mail import Mail, Message
+from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature
+from datetime import datetime, timedelta
+import secrets
+
 # Muat variabel lingkungan dari file .env
 load_dotenv()
 
@@ -55,6 +61,21 @@ IMGUR_UPLOAD_URL = "https://api.imgur.com/3/image"
 # Konfigurasi Google OAuth
 GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
 GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
+
+# Konfigurasi Flask-Mail untuk Fitur Lupa Sandi
+app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER')
+app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', 587)) # Default ke 587 untuk TLS
+app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS', 'True').lower() in ('true', '1', 't')
+app.config['MAIL_USE_SSL'] = os.getenv('MAIL_USE_SSL', 'False').lower() in ('true', '1', 't')
+app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
+app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER') # Alamat email pengirim
+
+mail = Mail(app)
+
+# Serializer untuk membuat dan memverifikasi token reset sandi
+# Menggunakan SECRET_KEY yang sama dengan aplikasi Flask untuk keamanan
+s = URLSafeTimedSerializer(app.secret_key)
 
 # Debugging: Cetak nilai GOOGLE_CLIENT_ID dari .env
 print(f"Debug: GOOGLE_CLIENT_ID from .env: {GOOGLE_CLIENT_ID}")
@@ -167,6 +188,106 @@ def inject_cart_count():
     cart_count = sum(item['quantity'] for item in session.get('cart', {}).values())
     return dict(cart_count=cart_count)
 
+# Logika untuk reset password
+@app.route('/forgot_password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        user = users_collection.find_one({'username': email, 'role': {'$in': ['admin', 'customer']}}) # Cari berdasarkan username/email
+        
+        if user:
+            # Generate token reset sandi
+            token = s.dumps(str(user['_id']), salt='password-reset-salt')
+            
+            # Simpan token dan waktu kedaluwarsa (misal: 1 jam dari sekarang) di database
+            expiry_time = datetime.now() + timedelta(hours=1)
+            users_collection.update_one(
+                {'_id': user['_id']},
+                {'$set': {'reset_token': token, 'reset_token_expiry': expiry_time}}
+            )
+
+            # Buat link reset
+            reset_url = url_for('reset_password', token=token, _external=True)
+            
+            # Kirim email
+            try:
+                msg = Message(
+                    'Permintaan Reset Sandi Anda',
+                    sender=app.config['MAIL_DEFAULT_SENDER'],
+                    recipients=[email]
+                )
+                msg.body = f"""Halo,
+
+Anda telah meminta reset sandi untuk akun Anda.
+Untuk mengatur ulang sandi Anda, kunjungi tautan berikut:
+
+{reset_url}
+
+Tautan ini akan kedaluwarsa dalam 1 jam.
+
+Jika Anda tidak meminta reset sandi, abaikan email ini.
+
+Terima kasih,
+Tim Eksa Shop
+"""
+                mail.send(msg)
+                flash('Link reset sandi telah dikirim ke email Anda. Silakan cek kotak masuk Anda (termasuk folder spam).', 'info')
+            except Exception as e:
+                flash(f'Gagal mengirim email reset sandi. Pastikan konfigurasi email sudah benar. Error: {e}', 'danger')
+                print(f"Mail sending error: {e}")
+        else:
+            flash('Email tidak ditemukan atau tidak terdaftar sebagai customer.', 'danger')
+        
+        return redirect(url_for('forgot_password'))
+    
+    return render_template('forgot_password.html')
+
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    try:
+        user_id_str = s.loads(token, salt='password-reset-salt', max_age=3600) # Token berlaku 1 jam (3600 detik)
+        user = users_collection.find_one({'_id': ObjectId(user_id_str)})
+
+        if not user or user.get('reset_token') != token or user.get('reset_token_expiry') < datetime.now():
+            flash('Tautan reset sandi tidak valid atau telah kedaluwarsa.', 'danger')
+            return redirect(url_for('login'))
+
+    except (SignatureExpired, BadTimeSignature):
+        flash('Tautan reset sandi telah kedaluwarsa atau tidak valid.', 'danger')
+        return redirect(url_for('login'))
+    except Exception as e:
+        flash('Terjadi kesalahan dengan tautan reset sandi Anda.', 'danger')
+        print(f"Error loading reset token: {e}")
+        return redirect(url_for('login'))
+
+    if request.method == 'POST':
+        new_password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+
+        if not new_password or not confirm_password:
+            flash('Sandi baru dan konfirmasi sandi diperlukan.', 'danger')
+            return render_template('reset_password.html', token=token)
+
+        if new_password != confirm_password:
+            flash('Sandi baru dan konfirmasi sandi tidak cocok.', 'danger')
+            return render_template('reset_password.html', token=token)
+        
+        if len(new_password) < 6:
+            flash('Kata sandi harus minimal 6 karakter.', 'danger')
+            return render_template('reset_password.html', token=token)
+
+        # Hash sandi baru dan perbarui di database
+        hashed_password = generate_password_hash(new_password)
+        users_collection.update_one(
+            {'_id': user['_id']},
+            {'$set': {'password': hashed_password},
+             '$unset': {'reset_token': '', 'reset_token_expiry': ''}} # Hapus token setelah digunakan
+        )
+        
+        flash('Sandi Anda berhasil direset. Silakan login dengan sandi baru Anda.', 'success')
+        return redirect(url_for('login'))
+
+    return render_template('reset_password.html', token=token)
 
 @app.route('/')
 def index():
@@ -488,26 +609,44 @@ def checkout_success():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if session.get('is_admin') or session.get('is_customer'):
-        flash('Anda sudah login.', 'info')
+    if session.get('user_id'): # Jika sudah login, arahkan ke halaman utama
         return redirect(url_for('index'))
 
     if request.method == 'POST':
         username = request.form['username']
-        password = request.form['password']
+        password = request.form['password'] # Mengambil password dari form
+        
+        # Cari pengguna berdasarkan username atau email
+        user = users_collection.find_one({
+            '$or': [
+                {'username': username},
+                {'email': username} # Asumsi username bisa berupa email
+            ]
+        })
 
-        user = users_collection.find_one({'username': username})
-
-        if user and check_password_hash(user['password'], password):
-            session['user_id'] = str(user['_id'])
-            session['username'] = user['username']
-            session['is_admin'] = (user.get('role') == 'admin')
-            session['is_customer'] = (user.get('role') == 'customer')
-            flash(f'Selamat datang, {user["username"]}!', 'success')
-            return redirect(url_for('index'))
+        if user:
+            # Periksa apakah pengguna terdaftar melalui Google
+            # Jika 'google_id' ada dan 'password' tidak ada, berarti ini pengguna Google
+            if 'google_id' in user and 'password' not in user:
+                flash('Anda terdaftar dengan Google. Mohon gunakan tombol "Login dengan Google".', 'info')
+                return redirect(url_for('login'))
+            
+            # Lanjutkan dengan verifikasi password untuk pengguna non-Google
+            # Pastikan kunci 'password' ada sebelum mencoba mengaksesnya
+            if 'password' in user and check_password_hash(user['password'], password):
+                session['user_id'] = str(user['_id'])
+                session['username'] = user['username']
+                session['is_admin'] = (user.get('role') == 'admin')
+                session['is_customer'] = (user.get('role') == 'customer')
+                session.modified = True
+                flash('Login berhasil!', 'success')
+                return redirect(url_for('index'))
+            else:
+                flash('Username atau kata sandi salah.', 'danger')
         else:
-            flash('Nama pengguna atau kata sandi salah.', 'danger')
-    return render_template('login.html')
+            flash('Username atau kata sandi salah.', 'danger')
+    
+    return render_template('login.html', GOOGLE_CLIENT_ID=GOOGLE_CLIENT_ID)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -700,55 +839,66 @@ def delete_promo(id):
 
 @app.route('/google_callback', methods=['POST'])
 def google_callback():
-    """
-    Menangani callback dari Google Sign-In.
-    Menerima ID token, memverifikasinya, dan mengautentikasi/mendaftar pengguna.
-    """
     if not GOOGLE_CLIENT_ID:
         flash("Google Client ID tidak diatur.", 'danger')
         return redirect(url_for('login'))
 
     try:
-        # ID token dikirim sebagai bagian dari payload POST
-        credential = request.form.get('credential')
-        if not credential:
-            raise ValueError("Credential (ID token) tidak ditemukan.")
+        # Dapatkan ID token dari permintaan POST
+        id_token_str = request.form.get('credential')
+        if not id_token_str:
+            raise ValueError("ID token tidak ditemukan.")
 
         # Verifikasi ID token
-        idinfo = id_token.verify_oauth2_token(credential, google_requests.Request(), GOOGLE_CLIENT_ID)
+        # Gunakan requests.Request() sebagai argumen untuk id_token.verify_oauth2_token
+        idinfo = id_token.verify_oauth2_token(id_token_str, google_requests.Request(), GOOGLE_CLIENT_ID)
 
-        # Dapatkan informasi pengguna dari token
+        # Cek apakah audiens ID token cocok dengan CLIENT_ID aplikasi Anda
+        if idinfo['aud'] not in [GOOGLE_CLIENT_ID]: # Jika ada lebih dari satu client ID, tambahkan di sini
+            raise ValueError('Audience mismatch.')
+
+        # Jika token valid, ekstrak informasi pengguna
         google_user_id = idinfo['sub']
-        email = idinfo['email']
-        name = idinfo.get('name', email)
+        email = idinfo.get('email')
+        name = idinfo.get('name') or email # Gunakan nama atau email jika nama tidak tersedia
 
-        # Cari pengguna berdasarkan google_id
-        user = users_collection.find_one({'google_id': google_user_id})
+        if not email:
+            flash("Email tidak ditemukan di token Google.", 'danger')
+            return redirect(url_for('login'))
 
-        if not user:
-            # Jika pengguna belum terdaftar dengan Google ID ini
-            # Cek apakah ada pengguna dengan email yang sama (mungkin daftar manual sebelumnya)
-            existing_user_by_email = users_collection.find_one({'username': email})
+        # Cari pengguna di database berdasarkan google_id atau email
+        user = users_collection.find_one({
+            '$or': [
+                {'google_id': google_user_id},
+                {'email': email}
+            ]
+        })
 
-            if existing_user_by_email:
-                # Jika ada pengguna dengan email yang sama, perbarui akun mereka dengan google_id
+        if user:
+            # Pengguna sudah ada
+            # Pastikan 'google_id' terhubung
+            if 'google_id' not in user:
+                # Jika user ada via email tapi belum punya google_id, tambahkan google_id
                 users_collection.update_one(
-                    {'_id': existing_user_by_email['_id']},
-                    {'$set': {'google_id': google_user_id, 'name': name}}
+                    {'_id': user['_id']},
+                    {'$set': {'google_id': google_user_id}}
                 )
-                user = users_collection.find_one({'_id': existing_user_by_email['_id']})
+                user['google_id'] = google_user_id # Update objek user di memori
                 flash(f'Akun Anda ({email}) berhasil dihubungkan dengan Google.', 'success')
             else:
-                # Daftarkan pengguna baru
-                user_data = {
-                    'username': email,
-                    'name': name,
-                    'google_id': google_user_id,
-                    'role': 'customer'
-                }
-                users_collection.insert_one(user_data)
-                user = users_collection.find_one({'google_id': google_user_id})
-                flash(f'Selamat datang, {name}! Akun Anda berhasil dibuat dengan Google.', 'success')
+                flash(f'Selamat datang kembali, {name or email}!', 'success')
+        else:
+            # Pengguna baru, daftarkan
+            user_data = {
+                'username': email, # Gunakan email sebagai username default
+                'email': email,
+                'name': name,
+                'google_id': google_user_id,
+                'role': 'customer'
+            }
+            users_collection.insert_one(user_data)
+            user = users_collection.find_one({'google_id': google_user_id}) # Ambil user yang baru dibuat
+            flash(f'Selamat datang, {name}! Akun Anda berhasil dibuat dengan Google.', 'success')
         
         # Set sesi untuk pengguna yang login
         session['user_id'] = str(user['_id'])
@@ -765,6 +915,6 @@ def google_callback():
         return redirect(url_for('login'))
     except Exception as e:
         flash(f"Terjadi kesalahan saat login dengan Google: {e}", 'danger')
-        print(f"Unexpected Google Sign-In Error: {e}")
+        print(f"Unhandled Google Sign-In Exception: {e}")
         return redirect(url_for('login'))
 
