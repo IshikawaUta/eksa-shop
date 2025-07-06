@@ -11,6 +11,7 @@ import re
 from werkzeug.security import generate_password_hash, check_password_hash
 from math import ceil
 from datetime import datetime
+from flask import Response
 
 # Impor untuk Google OAuth
 from google.oauth2 import id_token
@@ -25,6 +26,14 @@ import secrets
 
 # Muat variabel lingkungan dari file .env
 load_dotenv()
+
+def get_base_url():
+    # Gunakan request.url_root untuk mendapatkan URL dasar (misal: http://localhost:5000/)
+    # Pastikan untuk menghapus trailing slash jika ada, kecuali untuk root itu sendiri
+    root = request.url_root
+    if root.endswith('/'):
+        return root[:-1]
+    return root
 
 # Dapatkan jalur absolut ke direktori ini (api/)
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -918,3 +927,85 @@ def google_callback():
         print(f"Unhandled Google Sign-In Exception: {e}")
         return redirect(url_for('login'))
 
+@app.route('/sitemap.xml', methods=['GET'])
+def sitemap():
+    """
+    Menghasilkan sitemap.xml secara dinamis.
+    """
+    base_url = get_base_url()
+
+    # Daftar URL statis yang ingin Anda sertakan dalam sitemap
+    static_urls = [
+        {'loc': url_for('index', _external=True), 'lastmod': datetime.now().isoformat(), 'changefreq': 'daily', 'priority': '1.0'},
+        {'loc': url_for('login', _external=True), 'lastmod': datetime.now().isoformat(), 'changefreq': 'monthly', 'priority': '0.8'},
+        {'loc': url_for('register', _external=True), 'lastmod': datetime.now().isoformat(), 'changefreq': 'monthly', 'priority': '0.8'},
+        {'loc': url_for('list_promos', _external=True), 'lastmod': datetime.now().isoformat(), 'changefreq': 'weekly', 'priority': '0.7'},
+        {'loc': url_for('view_cart', _external=True), 'lastmod': datetime.now().isoformat(), 'changefreq': 'weekly', 'priority': '0.6'},
+        {'loc': url_for('privacy_policy', _external=True), 'lastmod': datetime.now().isoformat(), 'changefreq': 'monthly', 'priority': '0.5'},
+        {'loc': url_for('terms_and_conditions', _external=True), 'lastmod': datetime.now().isoformat(), 'changefreq': 'monthly', 'priority': '0.5'},
+
+    ]
+
+    # Ambil URL produk dari database
+    product_urls = []
+    try:
+        # PENTING: PASTIKAN 'products_collection' ADALAH NAMA KOLEKSI MONGODB ANDA UNTUK PRODUK
+        # Ambil hanya ID dan timestamp update (jika ada) untuk efisiensi
+        products = products_collection.find({}, {'_id': 1, 'updated_at': 1})
+        for product in products:
+            # Gunakan updated_at jika ada, jika tidak, gunakan waktu saat ini
+            lastmod = product.get('updated_at', datetime.now()).isoformat()
+            product_urls.append({
+                'loc': url_for('product_detail', product_id=str(product['_id']), _external=True),
+                'lastmod': lastmod,
+                'changefreq': 'weekly',
+                'priority': '0.9'
+            })
+    except Exception as e:
+        print(f"Error fetching products for sitemap: {e}")
+        # Opsional: Anda bisa menambahkan logging atau penanganan error lain di sini
+        # Contoh: flash(f"Warning: Could not generate all product URLs for sitemap due to DB error: {e}", 'warning')
+
+    # Gabungkan semua URL
+    urls = static_urls + product_urls
+
+    # Buat XML sitemap
+    xml_content = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    xml_content += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    for url_data in urls:
+        xml_content += '  <url>\n'
+        xml_content += f'    <loc>{url_data["loc"]}</loc>\n'
+        if 'lastmod' in url_data:
+            xml_content += f'    <lastmod>{url_data["lastmod"]}</lastmod>\n'
+        if 'changefreq' in url_data:
+            xml_content += f'    <changefreq>{url_data["changefreq"]}</changefreq>\n'
+        if 'priority' in url_data:
+            xml_content += f'    <priority>{url_data["priority"]}</priority>\n'
+        xml_content += '  </url>\n'
+    xml_content += '</urlset>\n'
+
+    # Kembalikan respons dengan header Content-Type yang benar
+    return Response(xml_content, mimetype='application/xml')
+
+@app.route('/robots.txt', methods=['GET'])
+def robots_txt():
+    """
+    Menghasilkan robots.txt secara dinamis.
+    """
+    base_url = get_base_url()
+
+    robots_content = f"""User-agent: *
+Allow: /
+Sitemap: {base_url}/sitemap.xml
+"""
+    return Response(robots_content, mimetype='text/plain')
+
+@app.route('/privacy-policy')
+def privacy_policy():
+    """Menampilkan halaman Kebijakan Privasi."""
+    return render_template('privacy_policy.html')
+
+@app.route('/terms-and-conditions')
+def terms_and_conditions():
+    """Menampilkan halaman Syarat dan Ketentuan."""
+    return render_template('terms_and_conditions.html')

@@ -4,6 +4,7 @@
 
 {% block head_meta %}
     {# Open Graph Meta Tags for Sharing #}
+    <meta name="description" content="{{ product.description | striptags | truncate(150, True, '...') }}">
     <meta property="og:title" content="{{ product.name }}" />
     <meta property="og:description" content="{{ product.description | striptags | truncate(150, True, '...') }}" />
     <meta property="og:image" content="{{ product.image_urls[0] if product.image_urls else 'https://placehold.co/1200x630/cccccc/333333?text=Gambar+Produk' }}" /> {# Ambil gambar pertama #}
