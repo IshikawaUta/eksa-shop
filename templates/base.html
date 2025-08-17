@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="google-site-verification" content="4lrHvQitrv8jBov9zef11OnhHJ-N0WWk1i5UStdcQgs"/>
 
     {# Default Meta Description, bisa di-override di setiap halaman #}
     <meta name="description" content="{% block meta_description %}Temukan penawaran terbaik untuk Templates dan Aplikasi di Eksa Shop. Belanja online mudah, aman, serta konfigurasi cepat!{% endblock %}">
@@ -29,16 +30,83 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&display=swap">
     <style>
+        :root {
+            --bs-primary-rgb: 0, 123, 255;
+            --bs-success-rgb: 40, 167, 69;
+        }
         body {
             font-family: 'Rajdhani', sans-serif;
         }
-
-
         .gradient-bg-blue-purple {
-            background-image: linear-gradient(to right, #0050a7 20%, #007bff 100%);
+            background: #2E3192;
+            background: -webkit-linear-gradient(to right, #0072bc, #2E3192);
+            background: linear-gradient(to right, #0072bc, #2E3192);
         }
-
-
+        .text-primary-gradient {
+            background: -webkit-linear-gradient(left, #007bff, #2E3192);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 700;
+        }
+        .btn-primary, .btn-primary:hover, .btn-primary:focus {
+            background: linear-gradient(to right, #007bff, #2E3192);
+            border-color: #007bff;
+            transition: all 0.3s ease;
+        }
+        .btn-success, .btn-success:hover, .btn-success:focus {
+            background: linear-gradient(to right, #28a745, #1d8232);
+            border-color: #28a745;
+            transition: all 0.3s ease;
+        }
+        .btn-warning, .btn-warning:hover, .btn-warning:focus {
+            background-color: #ffc107;
+            border-color: #ffc107;
+            color: #212529;
+            transition: all 0.3s ease;
+        }
+        .navbar-brand:hover {
+            transform: scale(1.05);
+            transition: transform 0.3s ease;
+        }
+        .nav-link:hover {
+            color: rgba(255, 255, 255, 0.75) !important;
+            transform: translateY(-2px);
+            transition: transform 0.2s ease;
+        }
+        .card {
+            border: none;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 12px rgba(0,0,0,0.15);
+        }
+        .card-img-top {
+            width: 100%;
+            height: 200px;
+            object-fit: contain;
+            background-color: #f8f9fa;
+        }
+        .badge-floating {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 10;
+            background-color: rgba(255, 193, 7, 0.9);
+            color: #212529;
+            animation: pulse-badge 2s infinite;
+        }
+        @keyframes pulse-badge {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        .price-text {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #28a745;
+        }
         #scrollToTopBtn {
             display: none;
             position: fixed;
@@ -47,55 +115,41 @@
             z-index: 99;
             border: none;
             outline: none;
-            background-color: #007bff;
+            background-color: #0072bc;
             color: white;
             cursor: pointer;
             padding: 15px;
             border-radius: 50%;
             font-size: 18px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            transition: background-color 0.3s, opacity 0.3s, transform 0.2s;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            transition: background-color 0.3s ease;
         }
-
         #scrollToTopBtn:hover {
-            background-color: #0056b3;
-            transform: translateY(-5px);
+            background-color: #2E3192;
         }
 
-        .navbar-nav .nav-link {
-            transition: color 0.3s ease-in-out, transform 0.2s ease-in-out;
+        /* Gaya untuk tampilan promo yang bisa di-scroll horizontal */
+        .promo-highlights-container {
+            overflow-x: auto;
+            white-space: nowrap;
         }
-
-        .navbar-nav .nav-link:hover {
-            color: #ffffff;
-            transform: translateY(-2px);
+        .promo-item {
+            display: inline-block;
+            width: 400px; /* Lebar setiap item */
+            vertical-align: top;
         }
-
-
-        .card {
-            transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+        .promo-item img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
         }
-
-        .card:hover {
-            transform: translateY(-5px) scale(1.02);
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
-        }
-
-        .btn {
-            transition: all 0.3s ease-in-out;
-        }
-
-        .btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-        }
-
-        .btn i {
-            margin-right: 5px;
+        .promo-item h5 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-top: 10px;
         }
     </style>
 
-    {# Ini adalah blok utama untuk tag <head> #}
     {% block head %}
         {# Ini adalah blok khusus untuk meta tag Open Graph/Twitter #}
         {% block head_meta %}
@@ -190,13 +244,32 @@
     </div>
 
     {# Footer Section #}
-    <footer class="footer mt-auto py-3 text-white-50 gradient-bg-blue-purple">
+    <footer class="footer mt-auto py-4 text-white gradient-bg-blue-purple shadow-lg">
         <div class="container text-center">
-            <span class="text-white-50">© 2024 Eksa Shop. Hak Cipta Dilindungi.</span>
-            <div class="mt-2">
-                <a href="{{ url_for('privacy_policy') }}" class="text-white-50 mx-2 text-decoration-none">Kebijakan Privasi</a> |
-                <a href="{{ url_for('terms_and_conditions') }}" class="text-white-50 mx-2 text-decoration-none">Syarat dan Ketentuan</a>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <h5 class="fw-bold">Tentang Kami</h5>
+                    <p class="small text-white-50">Eksa Shop menyediakan solusi digital terbaik untuk kebutuhan Anda, mulai dari templates hingga aplikasi.</p>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <h5 class="fw-bold">Ikuti Kami</h5>
+                    <div class="social-icons">
+                        <a href="www.linkedin.com/in/ishikawa-uta" class="text-white-50 mx-2"><i class="fab fa-linkedin"></i></a>
+                        <a href="https://github.com/IshikawaUta" class="text-white-50 mx-2"><i class="fab fa-github"></i></a>
+                        <a href="https://www.instagram.com/eksa_shop09" class="text-white-50 mx-2"><i class="fab fa-instagram"></i></a>
+                        <a href="https://wa.me/+62895701060973" class="text-white-50 mx-2"><i class="fab fa-whatsapp"></i></a>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <h5 class="fw-bold">Tautan Cepat</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="{{ url_for('privacy_policy') }}" class="text-white-50 text-decoration-none">Kebijakan Privasi</a></li>
+                        <li><a href="{{ url_for('terms_and_conditions') }}" class="text-white-50 text-decoration-none">Syarat & Ketentuan</a></li>
+                    </ul>
+                </div>
             </div>
+            <hr class="my-3 text-white-50">
+            <span class="text-white-50">© 2024 Eksa Shop. Hak Cipta Dilindungi.</span>
         </div>
     </footer>
 
