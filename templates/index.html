@@ -15,7 +15,7 @@
     {# Bagian Sorotan Promo yang Bisa Di-scroll Horizontal #}
     <h3 class="mb-4 text-center">Jelajahi Berbagai Penawaran Menarik Kami!</h3>
     <div class="promo-highlights-container mb-5 p-3 bg-white rounded-3 shadow-sm">
-        <div class="d-flex flex-nowrap overflow-auto py-2" style="scrollbar-width: thin; scrollbar-color: #007bff #f1f1f1;">
+        <div class="d-flex flex-nowrap overflow-auto py-2" style="scrollbar-width: thin; scrollbar-color: #0072bc #f1f1f1;">
             <div class="promo-item flex-shrink-0 text-center p-3 m-2 bg-light rounded-3 shadow-sm" style="min-width: 180px;">
                 <i class="fas fa-percent fa-2x text-info mb-2"></i>
                 <h6 class="fw-bold">Diskon Spesial Member Baru</h6>
@@ -100,7 +100,7 @@
                                 <i class="fas fa-info-circle"></i> Detail
                             </a>
                             <form action="{{ url_for('add_to_cart', product_id=product._id) }}" method="POST" class="d-inline">
-                                <button type="submit" class="btn btn-primary btn-sm rounded-pill">
+                                <button type="submit" class="btn btn-primary btn-sm rounded-pill animate__animated animate__pulse animate__infinite" style="--animate-duration: 2s;">
                                     <i class="fas fa-cart-plus"></i> Tambah ke Keranjang
                                 </button>
                             </form>
