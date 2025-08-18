@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Struk Pembelian</title>
+    <style>
+        body { 
+            font-family: 'Helvetica Neue', Arial, sans-serif; 
+            margin: 0; 
+            padding: 0; 
+            background-color: #f4f4f9; 
+        }
+        .receipt-container { 
+            width: 80%; 
+            max-width: 600px; 
+            margin: 40px auto; 
+            padding: 30px; 
+            background-color: #ffffff; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); 
+        }
+        .header { 
+            text-align: center; 
+            margin-bottom: 25px; 
+        }
+        .header h1 { 
+            font-size: 2.2rem; 
+            color: #333; 
+            margin: 0; 
+            font-weight: 600;
+        }
+        .header p { 
+            color: #777; 
+            font-size: 0.9rem; 
+            margin: 5px 0 0; 
+        }
+        .company-info {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .company-info h2 {
+            font-size: 1.2rem;
+            margin: 0;
+            color: #555;
+        }
+        .item-table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 25px; 
+        }
+        .item-table th, .item-table td { 
+            padding: 12px; 
+            text-align: left; 
+            border-bottom: 1px solid #e0e0e0; 
+        }
+        .item-table th { 
+            background-color: #f8f8f8; 
+            font-size: 0.9rem; 
+            font-weight: 600; 
+            color: #555;
+        }
+        .total-row td { 
+            border-top: 2px solid #333; 
+            font-size: 1.2rem; 
+            font-weight: bold; 
+            padding-top: 20px;
+            color: #333;
+        }
+        .total-row td:last-child {
+            text-align: right;
+        }
+        .footer { 
+            text-align: center; 
+            margin-top: 30px; 
+            color: #888; 
+            font-size: 0.85rem; 
+        }
+        .footer p {
+            margin: 0;
+        }
+        .logo {
+            margin-bottom: 10px;
+        }
+        .logo img {
+            max-width: 150px;
+        }
+    </style>
+</head>
+<body>
+    <div class="receipt-container">
+        <div class="header">
+            <div class="logo">
+                </div>
+            <h1>Struk Pesanan</h1>
+            <p><strong>Nomor Transaksi:</strong> {{ order_id }}</p>
+            <p><strong>Tanggal:</strong> {{ date }}</p>
+        </div>
+
+        <table class="item-table">
+            <thead>
+                <tr>
+                    <th>Produk</th>
+                    <th>Kuantitas</th>
+                    <th>Harga</th>
+                    <th style="text-align: right;">Subtotal</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    <td>{{ item.name }}</td>
+                    <td>{{ item.quantity }}</td>
+                    <td>Rp {{ "{:,.2f}".format(item.price) }}</td>
+                    <td style="text-align: right;">Rp {{ "{:,.2f}".format(item.subtotal) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr class="total-row">
+                    <td colspan="3">Total</td>
+                    <td style="text-align: right;">Rp {{ "{:,.2f}".format(total_price) }}</td>
+                </tr>
+            </tfoot>
+        </table>
+        
+        <div class="footer">
+            <p>Terima kasih telah berbelanja!</p>
+            <p>Silakan hubungi kami jika ada pertanyaan.</p>
+            <p>+62895701060973</p>
+        </div>
+    </div>
+</body>
+</html>

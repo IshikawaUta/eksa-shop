@@ -11,7 +11,9 @@ import re
 from werkzeug.security import generate_password_hash, check_password_hash
 from math import ceil
 from datetime import datetime
-from flask import Response
+from weasyprint import HTML
+from flask import Response, send_file
+import io
 
 # Impor untuk Google OAuth
 from google.oauth2 import id_token
@@ -598,22 +600,102 @@ def remove_promo():
 @app.route('/checkout_success', methods=['GET'])
 @login_required
 def checkout_success():
+    # Pastikan keranjang tidak kosong sebelum memproses
+    if 'cart' not in session or not session['cart']:
+        flash('Keranjang belanja Anda kosong.', 'danger')
+        return redirect(url_for('cart_view'))
+
+    cart_items = session['cart']
+    total_price = 0
+    items_for_db = []
+
+    # Perbaikan: Iterasi menggunakan .items() untuk mendapatkan product_id dan item_data
+    for product_id, item_data in cart_items.items():
+        item_total = item_data['price'] * item_data['quantity']
+        total_price += item_total
+        items_for_db.append({
+            'product_id': product_id,
+            'name': item_data['name'],
+            'quantity': item_data['quantity'],
+            'price': item_data['price'],
+            'subtotal': item_total
+        })
+
+    # Terapkan diskon jika ada promo yang digunakan
+    discount_amount = 0
     if session.get('applied_promo'):
         promo_code = session['applied_promo']
         promo = promos_collection.find_one({'code': promo_code})
-        if promo:
-            if ('expiry_date' not in promo or promo['expiry_date'] >= datetime.now()) and \
-               ('usage_limit' not in promo or promo.get('times_used', 0) < promo['usage_limit']):
+        if promo and ('expiry_date' not in promo or promo['expiry_date'] >= datetime.now()):
+            if 'usage_limit' not in promo or promo.get('times_used', 0) < promo['usage_limit']:
                 promos_collection.update_one({'_id': promo['_id']}, {'$inc': {'times_used': 1}})
+                discount_amount = total_price * (promo['discount_percent'] / 100)
+                total_price -= discount_amount
                 print(f"Promo code {promo_code} usage incremented.")
 
+    # Simpan pesanan ke database
+    order_data = {
+        'user_id': session['user_id'],
+        'items': items_for_db,
+        'total_price': total_price,
+        'discount_amount': discount_amount,
+        'date': datetime.now(),
+        'status': 'Completed'
+    }
+    
+    new_order = db.orders.insert_one(order_data)
+    order_id = new_order.inserted_id
+
+    # Kosongkan sesi setelah data berhasil disimpan
     session.pop('cart', None)
     session.pop('applied_promo', None)
     session.modified = True
-    flash('Pesanan Anda telah berhasil diproses! Keranjang belanja Anda telah dikosongkan.', 'success')
-    return redirect(url_for('index'))
+    flash('Pesanan Anda telah berhasil diproses!', 'success')
+    
+    # Arahkan pengguna ke halaman sukses dengan ID pesanan
+    return redirect(url_for('render_checkout_success', order_id=str(order_id)))
 
+# Rute baru untuk merender halaman sukses dan menyediakan tautan unduhan
+@app.route('/checkout_success_page/<order_id>')
+@login_required
+def render_checkout_success(order_id):
+    return render_template('checkout_success.html', order_id=order_id)
 
+# Rute baru untuk membuat dan mengirim file PDF
+@app.route('/generate-receipt/<order_id>')
+@login_required
+def generate_receipt(order_id):
+    try:
+        # Ambil data pesanan dari database
+        order = db.orders.find_one({'_id': ObjectId(order_id)})
+        if not order:
+            flash('Pesanan tidak ditemukan.', 'danger')
+            return redirect(url_for('index'))
+
+        # Siapkan data untuk template
+        data = {
+            'date': order['date'].strftime('%d %B %Y %H:%M'),
+            'items': order['items'],
+            'total_price': order['total_price']
+        }
+        
+        # Render template HTML menjadi string
+        html_string = render_template('receipt.html', **data)
+
+        # Buat PDF dari string HTML
+        pdf_file = HTML(string=html_string).write_pdf()
+
+        # Kirim file PDF sebagai respons
+        return send_file(
+            io.BytesIO(pdf_file),
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=f"struk_pembelian_{order_id}.pdf"
+        )
+    except Exception as e:
+        flash(f'Terjadi kesalahan saat membuat struk: {e}', 'danger')
+        return redirect(url_for('render_checkout_success', order_id=order_id))
+    
 # ---- Rute Autentikasi Admin & Pelanggan ----
 
 @app.route('/login', methods=['GET', 'POST'])
