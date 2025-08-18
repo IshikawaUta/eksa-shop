@@ -1,27 +1,11 @@
 {
-  "version": 2,
   "builds": [
     {
       "src": "api/index.py",
-      "use": "@vercel/python"
-    },
-    {
-      "src": "static/**",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "templates/**",
-      "use": "@vercel/static"
-    }
-  ],
-  "routes": [
-    {
-      "src": "./static/(.*)",
-      "dest": "./static/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "api/index.py"
+      "use": "@vercel/python",
+      "config": {
+        "pythonVersion": "3.12"
+      }
     }
   ],
   "installCommand": "pip install -r requirements.txt && sudo apt-get update && sudo apt-get install -y libpango-1.0-0 libcairo2 libpangoft2-1.0-0 libgdk-pixbuf2.0-0 libffi-dev shared-mime-info"
