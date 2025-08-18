@@ -11,7 +11,13 @@ import re
 from werkzeug.security import generate_password_hash, check_password_hash
 from math import ceil
 from datetime import datetime
-from weasyprint import HTML
+from reportlab.lib.pagesizes import A4, letter
+from reportlab.pdfgen import canvas
+from reportlab.lib.units import cm
+import io
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from flask import Response, send_file
 import io
 
@@ -28,6 +34,14 @@ import secrets
 
 # Muat variabel lingkungan dari file .env
 load_dotenv()
+
+# Inisialisasi styles
+styles = getSampleStyleSheet()
+
+# Tambahkan gaya hanya jika belum ada
+if 'Title' not in styles:
+    styles.add(ParagraphStyle(name='Title', fontSize=18, leading=22, alignment=1, spaceAfter=20))
+
 
 def get_base_url():
     # Gunakan request.url_root untuk mendapatkan URL dasar (misal: http://localhost:5000/)
@@ -661,40 +675,108 @@ def checkout_success():
 def render_checkout_success(order_id):
     return render_template('checkout_success.html', order_id=order_id)
 
-# Rute baru untuk membuat dan mengirim file PDF
+# Rute untuk membuat dan mengirim file PDF dengan ReportLab
 @app.route('/generate-receipt/<order_id>')
 @login_required
 def generate_receipt(order_id):
     try:
-        # Ambil data pesanan dari database
-        order = db.orders.find_one({'_id': ObjectId(order_id)})
+        # Periksa format ObjectId
+        try:
+            order_id_obj = ObjectId(order_id)
+        except Exception:
+            flash('ID pesanan tidak valid.', 'danger')
+            return redirect(url_for('index'))
+
+        # Cari pesanan di database
+        order = db.orders.find_one({'_id': order_id_obj})
         if not order:
             flash('Pesanan tidak ditemukan.', 'danger')
             return redirect(url_for('index'))
 
-        # Siapkan data untuk template
-        data = {
-            'date': order['date'].strftime('%d %B %Y %H:%M'),
-            'items': order['items'],
-            'total_price': order['total_price']
-        }
+        # Buat buffer untuk menyimpan PDF di memori
+        buffer = io.BytesIO()
+
+        # Atur dokumen PDF
+        # Anda tidak perlu lagi membuat `styles` baru di sini karena sudah dibuat di atas
+        doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
         
-        # Render template HTML menjadi string
-        html_string = render_template('receipt.html', **data)
+        # Buat story (daftar elemen yang akan digambar)
+        story = []
 
-        # Buat PDF dari string HTML
-        pdf_file = HTML(string=html_string).write_pdf()
+        # Gunakan gaya 'Title' yang sudah didefinisikan
+        story.append(Paragraph("Struk Pembelian", styles['Title']))
+        story.append(Paragraph(f"<b>Nomor Transaksi:</b> {order_id}", styles['Normal']))
 
-        # Kirim file PDF sebagai respons
+        # Penanganan tanggal: pastikan itu adalah objek datetime sebelum memformat
+        order_date = order.get('date')
+        if isinstance(order_date, datetime):
+            story.append(Paragraph(f"<b>Tanggal:</b> {order_date.strftime('%d %B %Y %H:%M')}", styles['Normal']))
+        else:
+            story.append(Paragraph("<b>Tanggal:</b> Data tanggal tidak valid", styles['Normal']))
+            
+        story.append(Spacer(1, 0.5 * cm))
+
+        # Persiapan data tabel
+        data_table = [['Produk', 'Kuantitas', 'Harga', 'Subtotal']]
+        # Ambil total harga dari database, atau hitung ulang jika tidak ada
+        total_price = order.get('total_price', 0)
+        
+        for item in order.get('items', []):
+            try:
+                price = float(item.get('price', 0))
+                quantity = int(item.get('quantity', 0))
+                subtotal = price * quantity
+                data_table.append([
+                    Paragraph(item.get('name', 'N/A'), styles['Normal']),
+                    str(quantity),
+                    f"Rp {price:,.2f}",
+                    f"Rp {subtotal:,.2f}"
+                ])
+            except (ValueError, TypeError) as e:
+                print(f"Error memproses item pesanan: {e} - Item: {item}")
+                continue
+        
+        # Tambahkan baris diskon dan total akhir (jika ada)
+        discount_amount = order.get('discount_amount', 0)
+        if discount_amount > 0:
+            data_table.append(['', '', Paragraph("<b>Diskon</b>", styles['Normal']), Paragraph(f"-Rp {discount_amount:,.2f}", styles['Normal'])])
+            
+        final_total = total_price - discount_amount
+        data_table.append(['', '', Paragraph("<b>Total</b>", styles['Normal']), Paragraph(f"<b>Rp {final_total:,.2f}</b>", styles['Normal'])])
+
+
+        # Buat dan atur gaya tabel
+        table = Table(data_table, colWidths=[6 * cm, 2 * cm, 3 * cm, 3 * cm])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F2F2F2')),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#D9D9D9')),
+        ]))
+        story.append(table)
+        story.append(Spacer(1, 1 * cm))
+
+        # Tambahkan footer
+        story.append(Paragraph("Terima kasih telah berbelanja!", styles['Normal']))
+
+        # Bangun dokumen PDF
+        doc.build(story)
+        buffer.seek(0)
+        
+        # Kirimkan PDF
         return send_file(
-            io.BytesIO(pdf_file),
+            buffer,
             mimetype='application/pdf',
             as_attachment=True,
             download_name=f"struk_pembelian_{order_id}.pdf"
         )
     except Exception as e:
-        flash(f'Terjadi kesalahan saat membuat struk: {e}', 'danger')
+        print(f"ReportLab Error saat membuat struk untuk order ID {order_id}: {e}")
+        flash('Terjadi kesalahan saat membuat struk. Silakan coba lagi atau hubungi dukungan.', 'danger')
         return redirect(url_for('render_checkout_success', order_id=order_id))
+
     
 # ---- Rute Autentikasi Admin & Pelanggan ----
 
