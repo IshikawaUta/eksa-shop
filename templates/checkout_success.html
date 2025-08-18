@@ -6,19 +6,19 @@
 <div class="container text-center py-5">
     <div class="row justify-content-center">
         <div class="col-md-8">
-            <h1 class="mb-4 fs-4">🎉 Pesanan Berhasil!</h1>
-            <p class="lead fs-5">Terima kasih telah berbelanja di toko kami.</p>
+            <h1 class="mb-4 text-primary-gradient fs-3">Pesanan Berhasil!!!</h1>
+            <p class="lead fs-6">Terima kasih telah berbelanja di toko kami.</p>
             <p>Pesanan Anda telah berhasil diproses.</p>
             <p class="text-danger" style="font-weight: bold;">SIMPAN BUKTI PESANAN INI.</p>
             
             {% if order_id %}
-            <a href="{{ url_for('generate_receipt', order_id=order_id) }}" class="btn btn-primary btn-lg mt-3" download>
+            <a href="{{ url_for('generate_receipt', order_id=order_id) }}" class="btn btn-primary fs-6 btn-lg mt-3" download>
                 Unduh Struk PDF
             </a>
             {% endif %}
 
             <div class="mt-5">
-                <a href="{{ url_for('index') }}" class="btn btn-outline-info">Kembali ke Beranda</a>
+                <a href="{{ url_for('index') }}" class="btn btn-outline-info fs-6">Kembali ke Beranda</a>
             </div>
         </div>
     </div>

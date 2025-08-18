@@ -473,6 +473,12 @@ def delete_product(id):
         flash('Produk tidak ditemukan.', 'danger')
     return redirect(url_for('index'))
 
+# --- rute layanan web services
+@app.route('/website_services')
+def website_services():
+    """Menampilkan halaman layanan pembuatan website."""
+    return render_template('website_services.html')
+
 # ---- Rute untuk Keranjang Belanja ----
 
 @app.route('/add_to_cart/<product_id>', methods=['POST'])
@@ -1105,6 +1111,7 @@ def sitemap():
         {'loc': url_for('register', _external=True), 'lastmod': datetime.now().isoformat(), 'changefreq': 'monthly', 'priority': '0.8'},
         {'loc': url_for('list_promos', _external=True), 'lastmod': datetime.now().isoformat(), 'changefreq': 'weekly', 'priority': '0.7'},
         {'loc': url_for('view_cart', _external=True), 'lastmod': datetime.now().isoformat(), 'changefreq': 'weekly', 'priority': '0.6'},
+        {'loc': url_for('website_services', _external=True), 'lastmod': datetime.now().isoformat(), 'changefreq': 'monthly', 'priority': '0.5'},
         {'loc': url_for('privacy_policy', _external=True), 'lastmod': datetime.now().isoformat(), 'changefreq': 'monthly', 'priority': '0.5'},
         {'loc': url_for('terms_and_conditions', _external=True), 'lastmod': datetime.now().isoformat(), 'changefreq': 'monthly', 'priority': '0.5'},
         {'loc': url_for('forgot_password', _external=True), 'lastmod': datetime.now().isoformat(), 'changefreq': 'monthly', 'priority': '0.4'},
