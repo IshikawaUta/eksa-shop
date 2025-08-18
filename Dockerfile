@@ -2,6 +2,7 @@
 FROM python:3.12-slim
 
 # Instal dependensi sistem yang dibutuhkan oleh WeasyPrint
+# Hapus 'sudo' dari sini
 RUN apt-get update && apt-get install -y \
     libpango-1.0-0 \
     libpangoft2-1.0-0 \
@@ -26,5 +27,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Salin seluruh kode proyek Anda ke dalam kontainer
 COPY . .
 
-# Perintah untuk menjalankan aplikasi Flask Anda
+# Tentukan perintah untuk menjalankan aplikasi Flask Anda
 CMD ["python", "api/index.py"]
