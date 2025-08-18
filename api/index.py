@@ -1107,20 +1107,19 @@ def sitemap():
         {'loc': url_for('view_cart', _external=True), 'lastmod': datetime.now().isoformat(), 'changefreq': 'weekly', 'priority': '0.6'},
         {'loc': url_for('privacy_policy', _external=True), 'lastmod': datetime.now().isoformat(), 'changefreq': 'monthly', 'priority': '0.5'},
         {'loc': url_for('terms_and_conditions', _external=True), 'lastmod': datetime.now().isoformat(), 'changefreq': 'monthly', 'priority': '0.5'},
-
+        {'loc': url_for('forgot_password', _external=True), 'lastmod': datetime.now().isoformat(), 'changefreq': 'monthly', 'priority': '0.4'},
     ]
 
     # Ambil URL produk dari database
     product_urls = []
     try:
-        # PENTING: PASTIKAN 'products_collection' ADALAH NAMA KOLEKSI MONGODB ANDA UNTUK PRODUK
         # Ambil hanya ID dan timestamp update (jika ada) untuk efisiensi
         products = products_collection.find({}, {'_id': 1, 'updated_at': 1})
         for product in products:
             # Gunakan updated_at jika ada, jika tidak, gunakan waktu saat ini
             lastmod = product.get('updated_at', datetime.now()).isoformat()
             product_urls.append({
-                'loc': url_for('product_detail', product_id=str(product['_id']), _external=True),
+                'loc': url_for('product_detail', id=str(product['_id']), _external=True),
                 'lastmod': lastmod,
                 'changefreq': 'weekly',
                 'priority': '0.9'
@@ -1128,7 +1127,6 @@ def sitemap():
     except Exception as e:
         print(f"Error fetching products for sitemap: {e}")
         # Opsional: Anda bisa menambahkan logging atau penanganan error lain di sini
-        # Contoh: flash(f"Warning: Could not generate all product URLs for sitemap due to DB error: {e}", 'warning')
 
     # Gabungkan semua URL
     urls = static_urls + product_urls
