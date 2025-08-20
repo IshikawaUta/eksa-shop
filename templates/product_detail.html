@@ -122,7 +122,7 @@
         </div>
     </div>
 
-    <div class="reviews-section mt-4 mx-auto" style="max-width: 800px;">
+<div class="reviews-section mt-4 mx-auto" style="max-width: 800px;">
     <h3 class="mb-3">Ulasan Pelanggan</h3>
     <hr>
     {% if logged_in_username %}
@@ -163,6 +163,36 @@
                 {% for _ in range(review.rating|int) %}⭐{% endfor %}
             </p>
             <p class="mb-1">{{ review.comment }}</p>
+
+            {% if review.get('admin_reply') %}
+            <div class="admin-reply-box mt-3 p-3 bg-light rounded-3 border">
+                <h6 class="mb-1 text-secondary"><i class="fas fa-reply me-1"></i> Balasan dari Admin</h6>
+                <p class="mb-0 text-muted">{{ review.admin_reply | nl2br }}</p>
+            </div>
+            {% endif %}
+
+            {# Formulir dan tombol balas admin berada di dalam loop, tapi di luar 'else' #}
+            {% if is_admin_logged_in %}
+            <div class="mt-3">
+                <form action="{{ url_for('submit_admin_reply', review_id=review._id) }}" method="post" class="d-flex flex-column gap-2">
+                    <input type="hidden" name="review_id" value="{{ review._id }}">
+                    <label for="admin_reply_{{ review._id }}" class="form-label">Balas Ulasan:</label>
+                    <textarea class="form-control" id="admin_reply_{{ review._id }}" name="admin_reply" rows="2" placeholder="Tulis balasan Anda di sini...">{% if review.get('admin_reply') %}{{ review.admin_reply }}{% endif %}</textarea>
+                    <div class="d-flex justify-content-end gap-2">
+                        <button type="submit" class="btn btn-sm btn-primary">
+                            {% if review.get('admin_reply') %}Edit Balasan{% else %}Kirim Balasan{% endif %}
+                        </button>
+                        {% if review.get('admin_reply') %}
+                        <button type="button" class="btn btn-sm btn-danger" onclick="document.getElementById('delete-form-{{ review._id }}').submit();">Hapus Balasan</button>
+                        {% endif %}
+                    </div>
+                </form>
+                {% if review.get('admin_reply') %}
+                <form id="delete-form-{{ review._id }}" action="{{ url_for('delete_admin_reply', review_id=review._id) }}" method="post" style="display:none;"></form>
+                {% endif %}
+            </div>
+            {% endif %}
+
         </div>
         {% else %}
         <div class="alert alert-warning text-center" role="alert">

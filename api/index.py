@@ -433,6 +433,62 @@ def submit_review(product_id):
 
     return redirect(url_for('product_detail', id=product_id))
 
+# Tambahkan rute baru ini
+@app.route('/submit_admin_reply/<review_id>', methods=['POST'])
+@admin_required
+def submit_admin_reply(review_id):
+    """Menambahkan atau memperbarui balasan admin untuk ulasan."""
+    admin_reply = request.form.get('admin_reply', '').strip()
+    
+    if not admin_reply:
+        flash('Balasan tidak boleh kosong.', 'danger')
+        return redirect(request.referrer or url_for('index'))
+
+    try:
+        result = reviews_collection.update_one(
+            {'_id': ObjectId(review_id)},
+            {'$set': {'admin_reply': admin_reply}}
+        )
+        if result.modified_count > 0:
+            flash('Balasan admin berhasil diperbarui!', 'success')
+        else:
+            flash('Ulasan tidak ditemukan atau balasan tidak berubah.', 'info')
+    except Exception as e:
+        flash(f'Terjadi kesalahan saat menyimpan balasan: {e}', 'danger')
+        app.logger.error(f"Error submitting admin reply: {e}")
+
+    # Redirect kembali ke halaman detail produk
+    review = reviews_collection.find_one({'_id': ObjectId(review_id)})
+    if review and review.get('product_id'):
+        return redirect(url_for('product_detail', id=str(review['product_id'])))
+    
+    return redirect(url_for('index'))
+
+# Tambahkan rute baru ini
+@app.route('/delete_admin_reply/<review_id>', methods=['POST'])
+@admin_required
+def delete_admin_reply(review_id):
+    """Menghapus balasan admin untuk ulasan."""
+    try:
+        result = reviews_collection.update_one(
+            {'_id': ObjectId(review_id)},
+            {'$unset': {'admin_reply': ''}}
+        )
+        if result.modified_count > 0:
+            flash('Balasan admin berhasil dihapus!', 'success')
+        else:
+            flash('Balasan tidak ditemukan.', 'warning')
+    except Exception as e:
+        flash(f'Terjadi kesalahan saat menghapus balasan: {e}', 'danger')
+        app.logger.error(f"Error deleting admin reply: {e}")
+
+    # Redirect kembali ke halaman detail produk
+    review = reviews_collection.find_one({'_id': ObjectId(review_id)})
+    if review and review.get('product_id'):
+        return redirect(url_for('product_detail', id=str(review['product_id'])))
+    
+    return redirect(url_for('index'))
+
 @app.route('/product/<id>')
 def product_detail(id):
     """Menampilkan detail satu produk."""
