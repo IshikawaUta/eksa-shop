@@ -76,6 +76,7 @@ db = client['ecommerce_db']
 products_collection = db['products']
 users_collection = db['users']
 promos_collection = db['promos']
+reviews_collection = db['reviews'] 
 
 # Konfigurasi Imgur API
 IMGUR_CLIENT_ID = os.getenv('IMGUR_CLIENT_ID')
@@ -394,6 +395,44 @@ def add_product():
         return redirect(url_for('index'))
     return render_template('add_product.html')
 
+# Rute untuk menangani pengiriman ulasan
+@app.route('/submit_review/<product_id>', methods=['POST'])
+def submit_review(product_id):
+    if not session.get('user_id'):
+        flash('Silakan login untuk memberikan ulasan.', 'danger')
+        return redirect(url_for('login'))
+
+    user_id = session['user_id']
+    user_name = session['username'] # Gunakan username dari sesi
+
+    rating = request.form.get('rating')
+    comment = request.form.get('comment')
+    
+    if not rating or not comment:
+        flash('Rating dan komentar wajib diisi.', 'danger')
+        return redirect(url_for('product', id=product_id))
+
+    try:
+        review_data = {
+            'product_id': ObjectId(product_id),
+            'user_id': ObjectId(user_id),
+            'user_name': user_name,
+            'rating': int(rating),
+            'comment': comment,
+            'created_at': datetime.now()
+        }
+        reviews_collection.insert_one(review_data)
+        
+        # Perbarui rata-rata rating (opsional, tapi disarankan)
+        # Tambahkan logika perhitungan rata-rata rating di sini
+        
+        flash('Ulasan Anda berhasil dikirim!', 'success')
+    except Exception as e:
+        flash(f'Terjadi kesalahan saat menyimpan ulasan: {e}', 'danger')
+        app.logger.error(f"Error submitting review: {e}")
+
+    return redirect(url_for('product_detail', id=product_id))
+
 @app.route('/product/<id>')
 def product_detail(id):
     """Menampilkan detail satu produk."""
@@ -403,7 +442,18 @@ def product_detail(id):
             product['image_urls'] = [product['image_url']]
         elif 'image_urls' not in product:
             product['image_urls'] = []
-        return render_template('product_detail.html', product=product)
+
+        reviews = list(reviews_collection.find({'product_id': ObjectId(id)}).sort('created_at', -1))
+
+        logged_in_username = session.get('username')
+        is_admin_logged_in = session.get('is_admin', False)
+
+        return render_template('product_detail.html', 
+                               product=product, 
+                               logged_in_username=logged_in_username, 
+                               is_admin_logged_in=is_admin_logged_in, 
+                               reviews=reviews)
+    
     flash('Produk tidak ditemukan.', 'danger')
     return redirect(url_for('index'))
 

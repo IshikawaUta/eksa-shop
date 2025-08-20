@@ -122,6 +122,56 @@
         </div>
     </div>
 
+    <div class="reviews-section mt-4 mx-auto" style="max-width: 800px;">
+    <h3 class="mb-3">Ulasan Pelanggan</h3>
+    <hr>
+    {% if logged_in_username %}
+    <div class="card p-3 mb-4 shadow-sm">
+        <h5>Tulis Ulasan Anda</h5>
+        <form action="{{ url_for('submit_review', product_id=product._id) }}" method="post">
+            <div class="mb-3">
+                <label for="rating" class="form-label">Rating:</label>
+                <select class="form-select" id="rating" name="rating" required>
+                    <option value="5">⭐⭐⭐⭐⭐</option>
+                    <option value="4">⭐⭐⭐⭐</option>
+                    <option value="3">⭐⭐⭐</option>
+                    <option value="2">⭐⭐</option>
+                    <option value="1">⭐</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="comment" class="form-label">Komentar:</label>
+                <textarea class="form-control" id="comment" name="comment" rows="3" required></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Kirim Ulasan</button>
+        </form>
+    </div>
+    {% else %}
+    <div class="alert alert-info" role="alert">
+        <p class="mb-0">Silakan <a href="{{ url_for('login') }}">login</a> untuk memberikan ulasan.</p>
+    </div>
+    {% endif %}
+
+    <div class="list-group">
+        {% for review in reviews %}
+        <div class="list-group-item list-group-item-action flex-column align-items-start mb-2 rounded-3 shadow-sm">
+            <div class="d-flex w-100 justify-content-between">
+                <h6 class="mb-1 text-primary">{{ review.user_name }}</h6>
+                <small class="text-muted">{{ review.created_at.strftime('%d %b %Y') }}</small>
+            </div>
+            <p class="mb-1">
+                {% for _ in range(review.rating|int) %}⭐{% endfor %}
+            </p>
+            <p class="mb-1">{{ review.comment }}</p>
+        </div>
+        {% else %}
+        <div class="alert alert-warning text-center" role="alert">
+            Belum ada ulasan untuk produk ini. Jadilah yang pertama memberikan ulasan!
+        </div>
+        {% endfor %}
+    </div>
+    </div>
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const imageModal = new bootstrap.Modal(document.getElementById('imageModal'));
