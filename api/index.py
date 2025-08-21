@@ -21,52 +21,40 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from flask import Response, send_file
 import io
 
-# Impor untuk Google OAuth
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 import json
 
-# Impor untuk reset password
 from flask_mail import Mail, Message
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature
 from datetime import datetime, timedelta
 import secrets
 
-# Muat variabel lingkungan dari file .env
 load_dotenv()
 
-# Inisialisasi styles
 styles = getSampleStyleSheet()
 
-# Tambahkan gaya hanya jika belum ada
 if 'Title' not in styles:
     styles.add(ParagraphStyle(name='Title', fontSize=18, leading=22, alignment=1, spaceAfter=20))
 
 
 def get_base_url():
-    # Gunakan request.url_root untuk mendapatkan URL dasar (misal: http://localhost:5000/)
-    # Pastikan untuk menghapus trailing slash jika ada, kecuali untuk root itu sendiri
     root = request.url_root
     if root.endswith('/'):
         return root[:-1]
     return root
 
-# Dapatkan jalur absolut ke direktori ini (api/)
 current_dir = os.path.dirname(os.path.abspath(__file__))
-# Tentukan jalur ke root proyek (satu tingkat di atas api/)
 project_root = os.path.join(current_dir, "..")
 
-# Inisialisasi aplikasi Flask
 app = Flask(__name__, root_path=project_root, template_folder="templates")
 
-# SECRET_KEY harus diatur sebagai Environment Variable di Vercel
-app.secret_key = os.getenv('SECRET_KEY') 
+app.secret_key = os.getenv('SECRET_KEY')
 if not app.secret_key:
     print("Warning: SECRET_KEY not set. Session will not be secure.")
     app.secret_key = 'temporary_insecure_key_for_dev_only'
 
 
-# Konfigurasi MongoDB Atlas
 MONGO_URI = os.getenv('MONGO_URI')
 if not MONGO_URI:
     raise ValueError("MONGO_URI environment variable not set. Please set it in Vercel.")
@@ -76,48 +64,37 @@ db = client['ecommerce_db']
 products_collection = db['products']
 users_collection = db['users']
 promos_collection = db['promos']
-reviews_collection = db['reviews'] 
+reviews_collection = db['reviews']
 
-# Konfigurasi Imgur API
 IMGUR_CLIENT_ID = os.getenv('IMGUR_CLIENT_ID')
 if not IMGUR_CLIENT_ID:
     print("Warning: IMGUR_CLIENT_ID not set. Imgur upload will not work.")
 IMGUR_UPLOAD_URL = "https://api.imgur.com/3/image"
 
-# Konfigurasi Google OAuth
 GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
 GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
 
-# Konfigurasi Flask-Mail untuk Fitur Lupa Sandi
 app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER')
-app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', 587)) # Default ke 587 untuk TLS
+app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', 587))
 app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS', 'True').lower() in ('true', '1', 't')
 app.config['MAIL_USE_SSL'] = os.getenv('MAIL_USE_SSL', 'False').lower() in ('true', '1', 't')
 app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
 app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
-app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER') # Alamat email pengirim
+app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER')
 
 mail = Mail(app)
 
-# Serializer untuk membuat dan memverifikasi token reset sandi
-# Menggunakan SECRET_KEY yang sama dengan aplikasi Flask untuk keamanan
 s = URLSafeTimedSerializer(app.secret_key)
 
-# Debugging: Cetak nilai GOOGLE_CLIENT_ID dari .env
 print(f"Debug: GOOGLE_CLIENT_ID from .env: {GOOGLE_CLIENT_ID}")
 print(f"Debug: GOOGLE_CLIENT_SECRET from .env: {GOOGLE_CLIENT_SECRET}")
 
 if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
     print("Warning: GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not set. Google Sign-In will not work.")
 
-# Konstanta Paginasi
 PER_PAGE = 9
 
-# Fungsi untuk mengunggah satu gambar ke Imgur
 def upload_single_image_to_imgur(image_file_stream):
-    """
-    Mengunggah satu stream file gambar ke Imgur dan mengembalikan URL gambar.
-    """
     if not IMGUR_CLIENT_ID:
         flash("Imgur Client ID tidak diatur, unggah gambar tidak berfungsi.", 'danger')
         return None
@@ -140,28 +117,18 @@ def upload_single_image_to_imgur(image_file_stream):
         print(f"Connection error during Imgur upload: {e}")
         return None
 
-# Filter kustom nl2br
 @app.template_filter('nl2br')
 def nl2br_filter(s):
-    """
-    Filter Jinja2 kustom untuk mengubah karakter newline (\n) menjadi tag HTML <br>.
-    Digunakan untuk menampilkan teks dengan pemformatan baris baru dari input textarea.
-    """
     if s is None:
         return ''
     return Markup(s.replace('\n', '<br>'))
 
-# Filter kustom escapejs
 @app.template_filter('escapejs')
 def escapejs_filter(s):
-    """
-    Filter Jinja2 kustom untuk meng-escape string agar aman digunakan dalam JavaScript.
-    """
     if s is None:
         return ''
     return escape(s).replace("'", "\\'").replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r')
 
-# Inisialisasi variabel sesi
 @app.before_request
 def initialize_session_variables():
     if 'cart' not in session:
@@ -183,7 +150,6 @@ def initialize_session_variables():
     app.jinja_env.globals['is_customer_logged_in'] = session.get('is_customer')
     app.jinja_env.globals['applied_promo'] = session.get('applied_promo')
 
-# Dekorator untuk memeriksa login admin
 def admin_required(f):
     def wrap(*args, **kwargs):
         if not session.get('is_admin'):
@@ -193,7 +159,6 @@ def admin_required(f):
     wrap.__name__ = f.__name__
     return wrap
 
-# Dekorator untuk memeriksa login customer atau admin (any logged in user)
 def login_required(f):
     def wrap(*args, **kwargs):
         if not session.get('user_id'):
@@ -203,39 +168,32 @@ def login_required(f):
     wrap.__name__ = f.__name__
     return wrap
 
-# Context processor untuk menyuntikkan GOOGLE_CLIENT_ID ke semua template
 @app.context_processor
 def inject_google_client_id():
     return dict(GOOGLE_CLIENT_ID=GOOGLE_CLIENT_ID)
 
 @app.context_processor
 def inject_cart_count():
-    """Menyuntikkan jumlah item di keranjang ke semua template."""
     cart_count = sum(item['quantity'] for item in session.get('cart', {}).values())
     return dict(cart_count=cart_count)
 
-# Logika untuk reset password
 @app.route('/forgot_password', methods=['GET', 'POST'])
 def forgot_password():
     if request.method == 'POST':
         email = request.form.get('email')
-        user = users_collection.find_one({'username': email, 'role': {'$in': ['admin', 'customer']}}) # Cari berdasarkan username/email
+        user = users_collection.find_one({'username': email, 'role': {'$in': ['admin', 'customer']}})
         
         if user:
-            # Generate token reset sandi
             token = s.dumps(str(user['_id']), salt='password-reset-salt')
             
-            # Simpan token dan waktu kedaluwarsa (misal: 1 jam dari sekarang) di database
             expiry_time = datetime.now() + timedelta(hours=1)
             users_collection.update_one(
                 {'_id': user['_id']},
                 {'$set': {'reset_token': token, 'reset_token_expiry': expiry_time}}
             )
 
-            # Buat link reset
             reset_url = url_for('reset_password', token=token, _external=True)
             
-            # Kirim email
             try:
                 msg = Message(
                     'Permintaan Reset Sandi Anda',
@@ -271,7 +229,7 @@ Tim Eksa Shop
 @app.route('/reset_password/<token>', methods=['GET', 'POST'])
 def reset_password(token):
     try:
-        user_id_str = s.loads(token, salt='password-reset-salt', max_age=3600) # Token berlaku 1 jam (3600 detik)
+        user_id_str = s.loads(token, salt='password-reset-salt', max_age=3600)
         user = users_collection.find_one({'_id': ObjectId(user_id_str)})
 
         if not user or user.get('reset_token') != token or user.get('reset_token_expiry') < datetime.now():
@@ -302,12 +260,11 @@ def reset_password(token):
             flash('Kata sandi harus minimal 6 karakter.', 'danger')
             return render_template('reset_password.html', token=token)
 
-        # Hash sandi baru dan perbarui di database
         hashed_password = generate_password_hash(new_password)
         users_collection.update_one(
             {'_id': user['_id']},
             {'$set': {'password': hashed_password},
-             '$unset': {'reset_token': '', 'reset_token_expiry': ''}} # Hapus token setelah digunakan
+             '$unset': {'reset_token': '', 'reset_token_expiry': ''}}
         )
         
         flash('Sandi Anda berhasil direset. Silakan login dengan sandi baru Anda.', 'success')
@@ -317,7 +274,6 @@ def reset_password(token):
 
 @app.route('/')
 def index():
-    """Menampilkan daftar semua produk, dengan opsi filter kategori, pencarian, dan paginasi."""
     selected_category_param = request.args.get('category')
     search_query = request.args.get('q', '').strip()
     page = request.args.get('page', 1, type=int)
@@ -363,7 +319,6 @@ def index():
 @app.route('/add_product', methods=['GET', 'POST'])
 @admin_required
 def add_product():
-    """Menambahkan produk baru ke database."""
     if request.method == 'POST':
         name = request.form['name']
         description = request.form['description']
@@ -395,7 +350,6 @@ def add_product():
         return redirect(url_for('index'))
     return render_template('add_product.html')
 
-# Rute untuk menangani pengiriman ulasan
 @app.route('/submit_review/<product_id>', methods=['POST'])
 def submit_review(product_id):
     if not session.get('user_id'):
@@ -403,7 +357,7 @@ def submit_review(product_id):
         return redirect(url_for('login'))
 
     user_id = session['user_id']
-    user_name = session['username'] # Gunakan username dari sesi
+    user_name = session['username']
 
     rating = request.form.get('rating')
     comment = request.form.get('comment')
@@ -423,9 +377,6 @@ def submit_review(product_id):
         }
         reviews_collection.insert_one(review_data)
         
-        # Perbarui rata-rata rating (opsional, tapi disarankan)
-        # Tambahkan logika perhitungan rata-rata rating di sini
-        
         flash('Ulasan Anda berhasil dikirim!', 'success')
     except Exception as e:
         flash(f'Terjadi kesalahan saat menyimpan ulasan: {e}', 'danger')
@@ -433,11 +384,9 @@ def submit_review(product_id):
 
     return redirect(url_for('product_detail', id=product_id))
 
-# Tambahkan rute baru ini
 @app.route('/submit_admin_reply/<review_id>', methods=['POST'])
 @admin_required
 def submit_admin_reply(review_id):
-    """Menambahkan atau memperbarui balasan admin untuk ulasan."""
     admin_reply = request.form.get('admin_reply', '').strip()
     
     if not admin_reply:
@@ -457,18 +406,15 @@ def submit_admin_reply(review_id):
         flash(f'Terjadi kesalahan saat menyimpan balasan: {e}', 'danger')
         app.logger.error(f"Error submitting admin reply: {e}")
 
-    # Redirect kembali ke halaman detail produk
     review = reviews_collection.find_one({'_id': ObjectId(review_id)})
     if review and review.get('product_id'):
         return redirect(url_for('product_detail', id=str(review['product_id'])))
     
     return redirect(url_for('index'))
 
-# Tambahkan rute baru ini
 @app.route('/delete_admin_reply/<review_id>', methods=['POST'])
 @admin_required
 def delete_admin_reply(review_id):
-    """Menghapus balasan admin untuk ulasan."""
     try:
         result = reviews_collection.update_one(
             {'_id': ObjectId(review_id)},
@@ -482,7 +428,6 @@ def delete_admin_reply(review_id):
         flash(f'Terjadi kesalahan saat menghapus balasan: {e}', 'danger')
         app.logger.error(f"Error deleting admin reply: {e}")
 
-    # Redirect kembali ke halaman detail produk
     review = reviews_collection.find_one({'_id': ObjectId(review_id)})
     if review and review.get('product_id'):
         return redirect(url_for('product_detail', id=str(review['product_id'])))
@@ -491,7 +436,6 @@ def delete_admin_reply(review_id):
 
 @app.route('/product/<id>')
 def product_detail(id):
-    """Menampilkan detail satu produk."""
     product = products_collection.find_one({'_id': ObjectId(id)})
     if product:
         if 'image_url' in product and not isinstance(product.get('image_urls'), list):
@@ -516,7 +460,6 @@ def product_detail(id):
 @app.route('/edit_product/<id>', methods=['GET', 'POST'])
 @admin_required
 def edit_product(id):
-    """Mengedit produk yang sudah ada."""
     product = products_collection.find_one({'_id': ObjectId(id)})
     if not product:
         flash('Produk tidak ditemukan.', 'danger')
@@ -571,7 +514,6 @@ def edit_product(id):
 @app.route('/delete_product/<id>', methods=['POST'])
 @admin_required
 def delete_product(id):
-    """Menghapus produk dari database."""
     result = products_collection.delete_one({'_id': ObjectId(id)})
     if result.deleted_count > 0:
         flash('Produk berhasil dihapus!', 'success')
@@ -579,17 +521,12 @@ def delete_product(id):
         flash('Produk tidak ditemukan.', 'danger')
     return redirect(url_for('index'))
 
-# --- rute layanan web services
 @app.route('/website_services')
 def website_services():
-    """Menampilkan halaman layanan pembuatan website."""
     return render_template('website_services.html')
-
-# ---- Rute untuk Keranjang Belanja ----
 
 @app.route('/add_to_cart/<product_id>', methods=['POST'])
 def add_to_cart(product_id):
-    """Menambahkan produk ke keranjang belanja."""
     product = products_collection.find_one({'_id': ObjectId(product_id)})
     if product:
         product['_id'] = str(product['_id']) 
@@ -612,7 +549,6 @@ def add_to_cart(product_id):
 
 @app.route('/remove_from_cart/<product_id>', methods=['POST'])
 def remove_from_cart(product_id):
-    """Menghapus satu item atau seluruh produk dari keranjang belanja."""
     if product_id in session['cart']:
         session['cart'][product_id]['quantity'] -= 1
         if session['cart'][product_id]['quantity'] <= 0:
@@ -625,7 +561,6 @@ def remove_from_cart(product_id):
 
 @app.route('/clear_item_from_cart/<product_id>', methods=['POST'])
 def clear_item_from_cart(product_id):
-    """Menghapus seluruh kuantitas produk dari keranjang belanja."""
     if product_id in session['cart']:
         product_name = session['cart'][product_id]['name']
         del session['cart'][product_id]
@@ -638,7 +573,6 @@ def clear_item_from_cart(product_id):
 
 @app.route('/cart', methods=['GET'])
 def view_cart():
-    """Menampilkan isi keranjang belanja."""
     cart_items = []
     subtotal_price = 0
     for product_id, item_data in session['cart'].items():
@@ -722,11 +656,9 @@ def remove_promo():
     return redirect(url_for('view_cart'))
 
 
-# Rute baru untuk menyelesaikan checkout dan mengosongkan keranjang
 @app.route('/checkout_success', methods=['GET'])
 @login_required
 def checkout_success():
-    # Pastikan keranjang tidak kosong sebelum memproses
     if 'cart' not in session or not session['cart']:
         flash('Keranjang belanja Anda kosong.', 'danger')
         return redirect(url_for('cart_view'))
@@ -735,7 +667,6 @@ def checkout_success():
     total_price = 0
     items_for_db = []
 
-    # Perbaikan: Iterasi menggunakan .items() untuk mendapatkan product_id dan item_data
     for product_id, item_data in cart_items.items():
         item_total = item_data['price'] * item_data['quantity']
         total_price += item_total
@@ -747,7 +678,6 @@ def checkout_success():
             'subtotal': item_total
         })
 
-    # Terapkan diskon jika ada promo yang digunakan
     discount_amount = 0
     if session.get('applied_promo'):
         promo_code = session['applied_promo']
@@ -759,7 +689,6 @@ def checkout_success():
                 total_price -= discount_amount
                 print(f"Promo code {promo_code} usage incremented.")
 
-    # Simpan pesanan ke database
     order_data = {
         'user_id': session['user_id'],
         'items': items_for_db,
@@ -772,54 +701,42 @@ def checkout_success():
     new_order = db.orders.insert_one(order_data)
     order_id = new_order.inserted_id
 
-    # Kosongkan sesi setelah data berhasil disimpan
     session.pop('cart', None)
     session.pop('applied_promo', None)
     session.modified = True
     flash('Pesanan Anda telah berhasil diproses!', 'success')
     
-    # Arahkan pengguna ke halaman sukses dengan ID pesanan
     return redirect(url_for('render_checkout_success', order_id=str(order_id)))
 
-# Rute baru untuk merender halaman sukses dan menyediakan tautan unduhan
 @app.route('/checkout_success_page/<order_id>')
 @login_required
 def render_checkout_success(order_id):
     return render_template('checkout_success.html', order_id=order_id)
 
-# Rute untuk membuat dan mengirim file PDF dengan ReportLab
 @app.route('/generate-receipt/<order_id>')
 @login_required
 def generate_receipt(order_id):
     try:
-        # Periksa format ObjectId
         try:
             order_id_obj = ObjectId(order_id)
         except Exception:
             flash('ID pesanan tidak valid.', 'danger')
             return redirect(url_for('index'))
 
-        # Cari pesanan di database
         order = db.orders.find_one({'_id': order_id_obj})
         if not order:
             flash('Pesanan tidak ditemukan.', 'danger')
             return redirect(url_for('index'))
 
-        # Buat buffer untuk menyimpan PDF di memori
         buffer = io.BytesIO()
 
-        # Atur dokumen PDF
-        # Anda tidak perlu lagi membuat `styles` baru di sini karena sudah dibuat di atas
         doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
         
-        # Buat story (daftar elemen yang akan digambar)
         story = []
 
-        # Gunakan gaya 'Title' yang sudah didefinisikan
         story.append(Paragraph("Struk Pembelian", styles['Title']))
         story.append(Paragraph(f"<b>Nomor Transaksi:</b> {order_id}", styles['Normal']))
 
-        # Penanganan tanggal: pastikan itu adalah objek datetime sebelum memformat
         order_date = order.get('date')
         if isinstance(order_date, datetime):
             story.append(Paragraph(f"<b>Tanggal:</b> {order_date.strftime('%d %B %Y %H:%M')}", styles['Normal']))
@@ -828,9 +745,7 @@ def generate_receipt(order_id):
             
         story.append(Spacer(1, 0.5 * cm))
 
-        # Persiapan data tabel
         data_table = [['Produk', 'Kuantitas', 'Harga', 'Subtotal']]
-        # Ambil total harga dari database, atau hitung ulang jika tidak ada
         total_price = order.get('total_price', 0)
         
         for item in order.get('items', []):
@@ -848,7 +763,6 @@ def generate_receipt(order_id):
                 print(f"Error memproses item pesanan: {e} - Item: {item}")
                 continue
         
-        # Tambahkan baris diskon dan total akhir (jika ada)
         discount_amount = order.get('discount_amount', 0)
         if discount_amount > 0:
             data_table.append(['', '', Paragraph("<b>Diskon</b>", styles['Normal']), Paragraph(f"-Rp {discount_amount:,.2f}", styles['Normal'])])
@@ -856,8 +770,6 @@ def generate_receipt(order_id):
         final_total = total_price - discount_amount
         data_table.append(['', '', Paragraph("<b>Total</b>", styles['Normal']), Paragraph(f"<b>Rp {final_total:,.2f}</b>", styles['Normal'])])
 
-
-        # Buat dan atur gaya tabel
         table = Table(data_table, colWidths=[6 * cm, 2 * cm, 3 * cm, 3 * cm])
         table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F2F2F2')),
@@ -870,14 +782,11 @@ def generate_receipt(order_id):
         story.append(table)
         story.append(Spacer(1, 1 * cm))
 
-        # Tambahkan footer
         story.append(Paragraph("Terima kasih telah berbelanja!", styles['Normal']))
 
-        # Bangun dokumen PDF
         doc.build(story)
         buffer.seek(0)
         
-        # Kirimkan PDF
         return send_file(
             buffer,
             mimetype='application/pdf',
@@ -890,34 +799,27 @@ def generate_receipt(order_id):
         return redirect(url_for('render_checkout_success', order_id=order_id))
 
     
-# ---- Rute Autentikasi Admin & Pelanggan ----
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if session.get('user_id'): # Jika sudah login, arahkan ke halaman utama
+    if session.get('user_id'):
         return redirect(url_for('index'))
 
     if request.method == 'POST':
         username = request.form['username']
-        password = request.form['password'] # Mengambil password dari form
+        password = request.form['password']
         
-        # Cari pengguna berdasarkan username atau email
         user = users_collection.find_one({
             '$or': [
                 {'username': username},
-                {'email': username} # Asumsi username bisa berupa email
+                {'email': username}
             ]
         })
 
         if user:
-            # Periksa apakah pengguna terdaftar melalui Google
-            # Jika 'google_id' ada dan 'password' tidak ada, berarti ini pengguna Google
             if 'google_id' in user and 'password' not in user:
                 flash('Anda terdaftar dengan Google. Mohon gunakan tombol "Login dengan Google".', 'info')
                 return redirect(url_for('login'))
             
-            # Lanjutkan dengan verifikasi password untuk pengguna non-Google
-            # Pastikan kunci 'password' ada sebelum mencoba mengaksesnya
             if 'password' in user and check_password_hash(user['password'], password):
                 session['user_id'] = str(user['_id'])
                 session['username'] = user['username']
@@ -935,7 +837,6 @@ def login():
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    """Rute untuk pendaftaran pelanggan baru."""
     if session.get('user_id'):
         flash('Anda sudah login.', 'info')
         return redirect(url_for('index'))
@@ -976,10 +877,6 @@ def logout():
 
 @app.route('/create_first_admin', methods=['GET', 'POST'])
 def create_first_admin():
-    """
-    Rute sementara untuk membuat akun admin pertama.
-    Ini harus DIHAPUS atau diamankan setelah admin pertama dibuat.
-    """
     if users_collection.find_one({'role': 'admin'}):
         flash('Admin sudah ada. Anda tidak bisa membuat admin baru dari sini.', 'warning')
         return redirect(url_for('login'))
@@ -1003,19 +900,15 @@ def create_first_admin():
         return redirect(url_for('login'))
     return render_template('create_first_admin.html')
 
-# ---- Rute Manajemen Promo ----
-
 @app.route('/promos')
 @login_required
 def list_promos():
-    """Menampilkan daftar semua kode promo."""
     promos = list(promos_collection.find({}).sort('code', 1))
     return render_template('promos.html', promos=promos)
 
 @app.route('/add_promo', methods=['GET', 'POST'])
 @admin_required
 def add_promo():
-    """Menambahkan kode promo baru."""
     if request.method == 'POST':
         code = request.form['code'].strip().upper()
         discount_type = request.form['discount_type']
@@ -1055,7 +948,6 @@ def add_promo():
 @app.route('/edit_promo/<id>', methods=['GET', 'POST'])
 @admin_required
 def edit_promo(id):
-    """Mengedit kode promo yang sudah ada."""
     promo = promos_collection.find_one({'_id': ObjectId(id)})
     if not promo:
         flash('Kode promo tidak ditemukan.', 'danger')
@@ -1112,15 +1004,12 @@ def edit_promo(id):
 @app.route('/delete_promo/<id>', methods=['POST'])
 @admin_required
 def delete_promo(id):
-    """Menghapus kode promo."""
     result = promos_collection.delete_one({'_id': ObjectId(id)})
     if result.deleted_count > 0:
         flash('Kode promo berhasil dihapus!', 'success')
     else:
         flash('Kode promo tidak ditemukan.', 'danger')
     return redirect(url_for('list_promos'))
-
-# ---- Google Sign-In Routes ----
 
 @app.route('/google_callback', methods=['POST'])
 def google_callback():
@@ -1129,29 +1018,23 @@ def google_callback():
         return redirect(url_for('login'))
 
     try:
-        # Dapatkan ID token dari permintaan POST
         id_token_str = request.form.get('credential')
         if not id_token_str:
             raise ValueError("ID token tidak ditemukan.")
 
-        # Verifikasi ID token
-        # Gunakan requests.Request() sebagai argumen untuk id_token.verify_oauth2_token
         idinfo = id_token.verify_oauth2_token(id_token_str, google_requests.Request(), GOOGLE_CLIENT_ID)
 
-        # Cek apakah audiens ID token cocok dengan CLIENT_ID aplikasi Anda
-        if idinfo['aud'] not in [GOOGLE_CLIENT_ID]: # Jika ada lebih dari satu client ID, tambahkan di sini
+        if idinfo['aud'] not in [GOOGLE_CLIENT_ID]:
             raise ValueError('Audience mismatch.')
 
-        # Jika token valid, ekstrak informasi pengguna
         google_user_id = idinfo['sub']
         email = idinfo.get('email')
-        name = idinfo.get('name') or email # Gunakan nama atau email jika nama tidak tersedia
+        name = idinfo.get('name') or email
 
         if not email:
             flash("Email tidak ditemukan di token Google.", 'danger')
             return redirect(url_for('login'))
 
-        # Cari pengguna di database berdasarkan google_id atau email
         user = users_collection.find_one({
             '$or': [
                 {'google_id': google_user_id},
@@ -1160,32 +1043,27 @@ def google_callback():
         })
 
         if user:
-            # Pengguna sudah ada
-            # Pastikan 'google_id' terhubung
             if 'google_id' not in user:
-                # Jika user ada via email tapi belum punya google_id, tambahkan google_id
                 users_collection.update_one(
                     {'_id': user['_id']},
                     {'$set': {'google_id': google_user_id}}
                 )
-                user['google_id'] = google_user_id # Update objek user di memori
+                user['google_id'] = google_user_id
                 flash(f'Akun Anda ({email}) berhasil dihubungkan dengan Google.', 'success')
             else:
                 flash(f'Selamat datang kembali, {name or email}!', 'success')
         else:
-            # Pengguna baru, daftarkan
             user_data = {
-                'username': email, # Gunakan email sebagai username default
+                'username': email,
                 'email': email,
                 'name': name,
                 'google_id': google_user_id,
                 'role': 'customer'
             }
             users_collection.insert_one(user_data)
-            user = users_collection.find_one({'google_id': google_user_id}) # Ambil user yang baru dibuat
+            user = users_collection.find_one({'google_id': google_user_id})
             flash(f'Selamat datang, {name}! Akun Anda berhasil dibuat dengan Google.', 'success')
         
-        # Set sesi untuk pengguna yang login
         session['user_id'] = str(user['_id'])
         session['username'] = user['username']
         session['is_admin'] = (user.get('role') == 'admin')
@@ -1205,12 +1083,8 @@ def google_callback():
 
 @app.route('/sitemap.xml', methods=['GET'])
 def sitemap():
-    """
-    Menghasilkan sitemap.xml secara dinamis.
-    """
     base_url = get_base_url()
 
-    # Daftar URL statis yang ingin Anda sertakan dalam sitemap
     static_urls = [
         {'loc': url_for('index', _external=True), 'lastmod': datetime.now().isoformat(), 'changefreq': 'daily', 'priority': '1.0'},
         {'loc': url_for('login', _external=True), 'lastmod': datetime.now().isoformat(), 'changefreq': 'monthly', 'priority': '0.8'},
@@ -1223,13 +1097,10 @@ def sitemap():
         {'loc': url_for('forgot_password', _external=True), 'lastmod': datetime.now().isoformat(), 'changefreq': 'monthly', 'priority': '0.4'},
     ]
 
-    # Ambil URL produk dari database
     product_urls = []
     try:
-        # Ambil hanya ID dan timestamp update (jika ada) untuk efisiensi
         products = products_collection.find({}, {'_id': 1, 'updated_at': 1})
         for product in products:
-            # Gunakan updated_at jika ada, jika tidak, gunakan waktu saat ini
             lastmod = product.get('updated_at', datetime.now()).isoformat()
             product_urls.append({
                 'loc': url_for('product_detail', id=str(product['_id']), _external=True),
@@ -1239,12 +1110,9 @@ def sitemap():
             })
     except Exception as e:
         print(f"Error fetching products for sitemap: {e}")
-        # Opsional: Anda bisa menambahkan logging atau penanganan error lain di sini
 
-    # Gabungkan semua URL
     urls = static_urls + product_urls
 
-    # Buat XML sitemap
     xml_content = '<?xml version="1.0" encoding="UTF-8"?>\n'
     xml_content += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
     for url_data in urls:
@@ -1259,14 +1127,10 @@ def sitemap():
         xml_content += '  </url>\n'
     xml_content += '</urlset>\n'
 
-    # Kembalikan respons dengan header Content-Type yang benar
     return Response(xml_content, mimetype='application/xml')
 
 @app.route('/robots.txt', methods=['GET'])
 def robots_txt():
-    """
-    Menghasilkan robots.txt secara dinamis.
-    """
     base_url = get_base_url()
 
     robots_content = f"""User-agent: *
@@ -1277,10 +1141,8 @@ Sitemap: {base_url}/sitemap.xml
 
 @app.route('/privacy-policy')
 def privacy_policy():
-    """Menampilkan halaman Kebijakan Privasi."""
     return render_template('privacy_policy.html')
 
 @app.route('/terms-and-conditions')
 def terms_and_conditions():
-    """Menampilkan halaman Syarat dan Ketentuan."""
     return render_template('terms_and_conditions.html')
