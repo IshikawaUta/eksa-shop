@@ -17,7 +17,10 @@ from reportlab.lib.units import cm
 import io
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+from reportlab.lib.enums import TA_CENTER
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from flask import Response, send_file
 import io
 
@@ -37,6 +40,13 @@ styles = getSampleStyleSheet()
 if 'Title' not in styles:
     styles.add(ParagraphStyle(name='Title', fontSize=18, leading=22, alignment=1, spaceAfter=20))
 
+basedir = os.path.abspath(os.path.dirname(__file__))
+
+roboto_regular_path = os.path.join(basedir, 'Roboto-Regular.ttf')
+roboto_bold_path = os.path.join(basedir, 'Roboto-Bold.ttf')
+
+pdfmetrics.registerFont(TTFont('Roboto', roboto_regular_path))
+pdfmetrics.registerFont(TTFont('Roboto-Bold', roboto_bold_path))
 
 def get_base_url():
     root = request.url_root
@@ -655,7 +665,6 @@ def remove_promo():
         session.modified = True
     return redirect(url_for('view_cart'))
 
-
 @app.route('/checkout_success', methods=['GET'])
 @login_required
 def checkout_success():
@@ -685,7 +694,7 @@ def checkout_success():
         if promo and ('expiry_date' not in promo or promo['expiry_date'] >= datetime.now()):
             if 'usage_limit' not in promo or promo.get('times_used', 0) < promo['usage_limit']:
                 promos_collection.update_one({'_id': promo['_id']}, {'$inc': {'times_used': 1}})
-                discount_amount = total_price * (promo['discount_percent'] / 100)
+                discount_amount = total_price * (promo.get('discount_percent', 0) / 100)
                 total_price -= discount_amount
                 print(f"Promo code {promo_code} usage incremented.")
 
@@ -730,22 +739,74 @@ def generate_receipt(order_id):
 
         buffer = io.BytesIO()
 
-        doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
-        
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            rightMargin=72,
+            leftMargin=72,
+            topMargin=72,
+            bottomMargin=18
+        )
+
         story = []
 
-        story.append(Paragraph("Struk Pembelian", styles['Title']))
-        story.append(Paragraph(f"<b>Nomor Transaksi:</b> {order_id}", styles['Normal']))
+        styles = getSampleStyleSheet()
+        styles.add(ParagraphStyle(
+            name='HeaderStyle',
+            fontName='Roboto-Bold',
+            fontSize=12,
+            alignment=TA_CENTER,
+            spaceAfter=12,
+            textColor=colors.HexColor("#303030")
+        ))
+        styles.add(ParagraphStyle(
+            name='NormalStyle',
+            fontName='Roboto',
+            fontSize=12,
+            spaceAfter=6,
+            textColor=colors.HexColor("#303030")
+        ))
+        styles.add(ParagraphStyle(
+            name='NormalBold',
+            fontName='Roboto-Bold',
+            fontSize=12,
+            spaceAfter=6,
+            textColor=colors.HexColor("#303030")
+        ))
+        styles.add(ParagraphStyle(
+            name='FooterStyle',
+            fontName='Roboto',
+            fontSize=12,
+            alignment=TA_CENTER,
+            spaceAfter=6,
+            textColor=colors.HexColor("#303030")
+        ))
+
+        logo_path = os.path.join(basedir, 'logo.png')
+        try:
+            logo = Image(logo_path, width=3.0 * cm, height=3.0 * cm)
+            story.append(logo)
+            story.append(Spacer(1, 0.2 * cm))
+        except FileNotFoundError:
+            pass
+
+        story.append(Paragraph("STRUK PESANAN", styles['HeaderStyle']))
+        story.append(Spacer(1, 0.5 * cm))
+
+        story.append(Paragraph(f"<b>Nomor Transaksi:</b> {order_id}", styles['NormalStyle']))
 
         order_date = order.get('date')
         if isinstance(order_date, datetime):
-            story.append(Paragraph(f"<b>Tanggal:</b> {order_date.strftime('%d %B %Y %H:%M')}", styles['Normal']))
+            story.append(Paragraph(
+                f"<b>Tanggal:</b> {order_date.strftime('%d %B %Y %H:%M')}",
+                styles['NormalStyle']
+            ))
         else:
-            story.append(Paragraph("<b>Tanggal:</b> Data tanggal tidak valid", styles['Normal']))
+            story.append(Paragraph("<b>Tanggal:</b> Data tanggal tidak valid", styles['NormalStyle']))
             
-        story.append(Spacer(1, 0.5 * cm))
+        story.append(Spacer(1, 1.0 * cm))
 
-        data_table = [['Produk', 'Kuantitas', 'Harga', 'Subtotal']]
+        data_table = [['PRODUK', 'Kuantitas', 'HARGA', 'SUBTOTAL']]
         total_price = order.get('total_price', 0)
         
         for item in order.get('items', []):
@@ -754,7 +815,7 @@ def generate_receipt(order_id):
                 quantity = int(item.get('quantity', 0))
                 subtotal = price * quantity
                 data_table.append([
-                    Paragraph(item.get('name', 'N/A'), styles['Normal']),
+                    Paragraph(item.get('name', 'N/A'), styles['NormalStyle']),
                     str(quantity),
                     f"Rp {price:,.2f}",
                     f"Rp {subtotal:,.2f}"
@@ -765,24 +826,33 @@ def generate_receipt(order_id):
         
         discount_amount = order.get('discount_amount', 0)
         if discount_amount > 0:
-            data_table.append(['', '', Paragraph("<b>Diskon</b>", styles['Normal']), Paragraph(f"-Rp {discount_amount:,.2f}", styles['Normal'])])
+            data_table.append(['', '', Paragraph("<b>Diskon</b>", styles['NormalBold']), Paragraph(f"-Rp {discount_amount:,.2f}", styles['NormalBold'])])
             
         final_total = total_price - discount_amount
-        data_table.append(['', '', Paragraph("<b>Total</b>", styles['Normal']), Paragraph(f"<b>Rp {final_total:,.2f}</b>", styles['Normal'])])
+        data_table.append(['', '', Paragraph("<b>Total</b>", styles['NormalBold']), Paragraph(f"<b>Rp {final_total:,.2f}</b>", styles['NormalBold'])])
 
         table = Table(data_table, colWidths=[6 * cm, 2 * cm, 3 * cm, 3 * cm])
         table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F2F2F2')),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F0F0F0')),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#000000")),
+            ('FONTNAME', (0, 0), (-1, 0), 'Roboto-Bold'),
             ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#D9D9D9')),
+            ('FONTNAME', (0, -1), (-1, -1), 'Roboto-Bold'),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#DCDCDC')),
+            ('LEFTPADDING', (0, 0), (-1, -1), 10),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
         ]))
         story.append(table)
-        story.append(Spacer(1, 1 * cm))
+        story.append(Spacer(1, 1.5 * cm))
 
-        story.append(Paragraph("Terima kasih telah berbelanja!", styles['Normal']))
+        story.append(Paragraph("TERIMAKASIH TELAH BERBELANJA!", styles['HeaderStyle']))
+        story.append(Spacer(1, 1.0 * cm))
+
+        story.append(Paragraph("Hubungi kami: 0895701060973", styles['FooterStyle']))
+        story.append(Paragraph("Alamat: jl.masjid al-istiqomah, kp.cijengir, binong", styles['FooterStyle']))
 
         doc.build(story)
         buffer.seek(0)
